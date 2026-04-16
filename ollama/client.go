@@ -23,9 +23,9 @@ type ChatRequest struct {
 }
 
 type Message struct {
-	Role       string     `json:"role"`
-	Content    string     `json:"content"`
-	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
+	Role      string     `json:"role"`
+	Content   string     `json:"content"`
+	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
 }
 
 type ToolCall struct {
@@ -38,8 +38,8 @@ type ToolFunction struct {
 }
 
 type Tool struct {
-	Type     string       `json:"type"`
-	Function ToolDef      `json:"function"`
+	Type     string  `json:"type"`
+	Function ToolDef `json:"function"`
 }
 
 type ToolDef struct {

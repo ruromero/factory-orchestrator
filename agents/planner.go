@@ -27,8 +27,8 @@ const plannerSystemPrompt = `You are a software project planner. Given a GitHub 
 Be specific and actionable. Do not generate code.`
 
 type PlanResult struct {
-	Outcome  string // "plan", "needs_info", or "decompose"
-	Content  string
+	Outcome string // "plan", "needs_info", or "decompose"
+	Content string
 }
 
 func Plan(ctx context.Context, ol *ollama.Client, issueTitle, issueBody, researchContext string) (PlanResult, error) {

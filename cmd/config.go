@@ -9,13 +9,13 @@ import (
 )
 
 type Config struct {
-	OllamaURL     string        `json:"ollama_url"`
-	GeminiAPIKey  string        `json:"gemini_api_key"`
-	PollInterval  Duration      `json:"poll_interval"`
-	MaxIterations int           `json:"max_iterations"`
-	MaxCostBudget int           `json:"max_cost_budget"`
-	ShadowMode    bool          `json:"shadow_mode"`
-	Repos         []RepoConfig  `json:"repos"`
+	OllamaURL     string       `json:"ollama_url"`
+	GeminiAPIKey  string       `json:"gemini_api_key"`
+	PollInterval  Duration     `json:"poll_interval"`
+	MaxIterations int          `json:"max_iterations"`
+	MaxCostBudget int          `json:"max_cost_budget"`
+	ShadowMode    bool         `json:"shadow_mode"`
+	Repos         []RepoConfig `json:"repos"`
 }
 
 type RepoConfig struct {

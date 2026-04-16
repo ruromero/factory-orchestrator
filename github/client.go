@@ -17,10 +17,10 @@ type Client struct {
 }
 
 type Issue struct {
-	Number int      `json:"number"`
-	Title  string   `json:"title"`
-	Body   string   `json:"body"`
-	Labels []Label  `json:"labels"`
+	Number int     `json:"number"`
+	Title  string  `json:"title"`
+	Body   string  `json:"body"`
+	Labels []Label `json:"labels"`
 }
 
 type Label struct {
