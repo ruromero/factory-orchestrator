@@ -14,6 +14,7 @@ import (
 	"github.com/ruromero/factory-orchestrator/agents"
 	"github.com/ruromero/factory-orchestrator/gemini"
 	"github.com/ruromero/factory-orchestrator/github"
+	"github.com/ruromero/factory-orchestrator/harness"
 	"github.com/ruromero/factory-orchestrator/ollama"
 	"github.com/ruromero/factory-orchestrator/sandbox"
 )
@@ -116,6 +117,9 @@ func pollAllRepos(ctx context.Context, ol *ollama.Client, gem *gemini.Client, cf
 func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, gem *gemini.Client, cfg Config, issue github.Issue) error {
 	log := slog.With("issue", issue.Number)
 
+	// Load repo-level context
+	pc := harness.LoadRepoContext(ctx, gh)
+
 	issueTitle := sandbox.SanitizeInput(issue.Title)
 	issueBody := sandbox.SanitizeInput(issue.Body)
 
@@ -129,7 +133,7 @@ func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, gem
 
 	// Phase 2: Plan
 	log.Info("starting plan phase")
-	plan, err := agents.Plan(ctx, ol, issueTitle, issueBody, researchCtx)
+	plan, err := agents.Plan(ctx, ol, issueTitle, issueBody, researchCtx, pc.Conventions)
 	if err != nil {
 		return fmt.Errorf("plan phase: %w", err)
 	}

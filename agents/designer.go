@@ -19,8 +19,11 @@ const designerSystemPrompt = `You are a software architect. Given an implementat
 
 Output structured markdown. Do not write implementation code.`
 
-func Design(ctx context.Context, ol *ollama.Client, plan, researchContext string) (string, error) {
+func Design(ctx context.Context, ol *ollama.Client, plan, researchContext, conventions string) (string, error) {
 	userPrompt := fmt.Sprintf("## Implementation Plan\n\n%s", plan)
+	if conventions != "" {
+		userPrompt += fmt.Sprintf("\n\n## Project Conventions\n\nFollow these conventions:\n\n%s", conventions)
+	}
 	if researchContext != "" {
 		userPrompt += fmt.Sprintf("\n\n## Research Context\n\n%s", researchContext)
 	}

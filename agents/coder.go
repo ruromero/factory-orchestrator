@@ -25,8 +25,11 @@ Rules:
 - Follow existing code style and conventions
 - Do not add unnecessary dependencies`
 
-func Code(ctx context.Context, ol *ollama.Client, design, researchContext string, tools []ollama.Tool, handler ollama.ToolHandler) (string, error) {
+func Code(ctx context.Context, ol *ollama.Client, design, researchContext, conventions string, tools []ollama.Tool, handler ollama.ToolHandler) (string, error) {
 	userPrompt := fmt.Sprintf("## Technical Design\n\n%s", design)
+	if conventions != "" {
+		userPrompt += fmt.Sprintf("\n\n## Project Conventions\n\nFollow these conventions strictly:\n\n%s", conventions)
+	}
 	if researchContext != "" {
 		userPrompt += fmt.Sprintf("\n\n## Research Context\n\n%s", researchContext)
 	}

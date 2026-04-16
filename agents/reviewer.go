@@ -64,8 +64,11 @@ type ReviewResult struct {
 	Intent      string
 }
 
-func Review(ctx context.Context, ol *ollama.Client, code, design, plan string, tools []ollama.Tool, handler ollama.ToolHandler) (ReviewResult, error) {
+func Review(ctx context.Context, ol *ollama.Client, code, design, plan, conventions string, tools []ollama.Tool, handler ollama.ToolHandler) (ReviewResult, error) {
 	codeContext := fmt.Sprintf("## Plan\n\n%s\n\n## Design\n\n%s\n\n## Code\n\n%s", plan, design, code)
+	if conventions != "" {
+		codeContext += fmt.Sprintf("\n\n## Project Conventions\n\nVerify code follows these conventions:\n\n%s", conventions)
+	}
 
 	correctness, err := reviewWith(ctx, ol, correctnessPrompt, codeContext, tools, handler)
 	if err != nil {
