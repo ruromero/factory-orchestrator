@@ -1,0 +1,20 @@
+{
+  "ollama_url": "http://ollama.ai.svc.cluster.local:11434",
+  "gemini_api_key": "",
+  "poll_interval": "30s",
+  "max_iterations": 3,
+  "max_cost_budget": 100000,
+  "shadow_mode": true,
+  "repos": [
+    {
+      "owner": "ruromero",
+      "repo": "factory-orchestrator",
+      "token": "ghp_..."
+    },
+    {
+      "owner": "ruromero",
+      "repo": "bunko.sh",
+      "token": "ghp_..."
+    }
+  ]
+}

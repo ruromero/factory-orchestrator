@@ -1,0 +1,11 @@
+[github_app]
+pr_commands = ["/review"]
+
+[pr_reviewer]
+enable_review_labels_effort = true
+enable_review_labels_security = true
+require_security_review = true
+persistent_comment = true
+
+[pr_description]
+enable_pr_type_labels = true

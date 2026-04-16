@@ -1,0 +1,15 @@
+# Human-owned paths — require human review, never auto-merged
+
+# Agent configuration and prompts
+CLAUDE.md                     @ruromero
+CODEOWNERS                    @ruromero
+BOOKMARKS.md                  @ruromero
+config.example.json           @ruromero
+
+# Security-critical code
+/sandbox/                     @ruromero
+/mcp/                         @ruromero
+
+# CI/CD and deployment
+/.github/                     @ruromero
+Dockerfile                    @ruromero
