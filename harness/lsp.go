@@ -23,8 +23,8 @@ type lspServer struct {
 
 var knownServers = []lspServer{
 	{
-		marker: "Cargo.toml",
-		name:   "rust-analyzer",
+		marker:  "Cargo.toml",
+		name:    "rust-analyzer",
 		install: installRustAnalyzer,
 	},
 	{
