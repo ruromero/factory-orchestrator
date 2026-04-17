@@ -48,6 +48,10 @@ func NewClient(name string, args ...string) *Client {
 	}
 }
 
+func (c *Client) SetEnv(env []string) {
+	c.cmd.Env = env
+}
+
 func (c *Client) Start(ctx context.Context) error {
 	var err error
 	c.stdin, err = c.cmd.StdinPipe()

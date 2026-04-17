@@ -12,6 +12,7 @@ var requiredFiles = []string{
 	"CONVENTIONS.md",
 	"ARCHITECTURE.md",
 	"README.md",
+	".serena",
 }
 
 type ReadinessResult struct {

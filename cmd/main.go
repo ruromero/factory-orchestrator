@@ -154,7 +154,7 @@ func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, gem
 	}
 
 	log.Info("starting research phase")
-	researchCtx, err := agents.Research(ctx, gem, issueTitle, issueBody)
+	researchCtx, err := agents.Research(ctx, gem, issueTitle, issueBody, rc.Summaries())
 	if err != nil {
 		log.Warn("research phase failed, continuing without", "error", err)
 		researchCtx = ""
@@ -239,11 +239,23 @@ func buildGatherTools(ctx context.Context, gh *github.Client, rc *harness.RepoCo
 		return contextTools, contextHandler, nil
 	}
 
+	lspBinDir, err := harness.InstallLanguageServers(ctx, cloneDir)
+	if err != nil {
+		log.Warn("failed to set up language servers", "error", err)
+	}
+
 	args := append(cfg.Serena.Args, "--project", cloneDir)
 	serena := mcp.NewClient(cfg.Serena.Command, args...)
+	if lspBinDir != "" {
+		env := os.Environ()
+		npmBin := fmt.Sprintf("%s/bin", lspBinDir)
+		env = append(env, fmt.Sprintf("PATH=%s:%s:%s", lspBinDir, npmBin, os.Getenv("PATH")))
+		serena.SetEnv(env)
+	}
 	if err := serena.Start(ctx); err != nil {
 		log.Warn("failed to start Serena, using API-only tools", "error", err)
 		cloneCleanup()
+		os.RemoveAll(lspBinDir)
 		return contextTools, contextHandler, nil
 	}
 
@@ -259,6 +271,9 @@ func buildGatherTools(ctx context.Context, gh *github.Client, rc *harness.RepoCo
 			log.Warn("failed to stop Serena", "error", err)
 		}
 		cloneCleanup()
+		if lspBinDir != "" {
+			os.RemoveAll(lspBinDir)
+		}
 	}
 	return allTools, composite, cleanup
 }

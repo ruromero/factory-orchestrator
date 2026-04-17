@@ -89,6 +89,7 @@ The factory will skip repos that don't meet minimum requirements:
 - `CONVENTIONS.md` — coding standards, patterns, and best practices that all agents must follow
 - `CODEOWNERS` — protects security-critical paths from autonomous modification
 - `CLAUDE.md` — minimal context file with non-obvious constraints
+- `.serena/` — Serena MCP project config for LSP-powered code navigation
 
 The planner receives `README.md`, `ARCHITECTURE.md`, and `CONVENTIONS.md` as context to produce plans that fit the actual system. These docs can link to subdocuments for deeper detail.
 
