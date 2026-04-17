@@ -239,7 +239,7 @@ func buildGatherTools(ctx context.Context, gh *github.Client, rc *harness.RepoCo
 		return contextTools, contextHandler, nil
 	}
 
-	args := append(cfg.Serena.Args, "--workspace", cloneDir)
+	args := append(cfg.Serena.Args, "--project", cloneDir)
 	serena := mcp.NewClient(cfg.Serena.Command, args...)
 	if err := serena.Start(ctx); err != nil {
 		log.Warn("failed to start Serena, using API-only tools", "error", err)
