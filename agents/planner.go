@@ -31,8 +31,14 @@ type PlanResult struct {
 	Content string
 }
 
-func Plan(ctx context.Context, ol *ollama.Client, issueTitle, issueBody, researchContext, conventions string) (PlanResult, error) {
+func Plan(ctx context.Context, ol *ollama.Client, issueTitle, issueBody, researchContext, conventions, architecture, readme string) (PlanResult, error) {
 	userPrompt := fmt.Sprintf("## Issue: %s\n\n%s", issueTitle, issueBody)
+	if readme != "" {
+		userPrompt += fmt.Sprintf("\n\n## Project Overview\n\n%s", readme)
+	}
+	if architecture != "" {
+		userPrompt += fmt.Sprintf("\n\n## Architecture\n\n%s", architecture)
+	}
 	if conventions != "" {
 		userPrompt += fmt.Sprintf("\n\n## Project Conventions\n\nFollow these conventions in your plan:\n\n%s", conventions)
 	}

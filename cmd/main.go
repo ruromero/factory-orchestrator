@@ -145,7 +145,7 @@ func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, gem
 	}
 
 	log.Info("starting plan phase")
-	plan, err := agents.Plan(ctx, ol, issueTitle, issueBody, researchCtx, pc.Conventions)
+	plan, err := agents.Plan(ctx, ol, issueTitle, issueBody, researchCtx, pc.Conventions, pc.Architecture, pc.Readme)
 	if err != nil {
 		return fmt.Errorf("plan phase: %w", err)
 	}

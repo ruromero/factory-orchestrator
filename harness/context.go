@@ -7,27 +7,36 @@ import (
 	"github.com/ruromero/factory-orchestrator/github"
 )
 
-// PhaseContext holds the assembled context for an agent phase.
 type PhaseContext struct {
 	IssueTitle      string
 	IssueBody       string
 	ResearchContext string
 	Conventions     string
+	Architecture    string
+	Readme          string
 	Plan            string
 	Design          string
 	Code            string
 	ReviewFeedback  string
 }
 
-// LoadRepoContext fetches repo-level context files that all agents need.
 func LoadRepoContext(ctx context.Context, gh *github.Client) PhaseContext {
 	var pc PhaseContext
 
-	conventions, err := gh.GetFileContent(ctx, "CONVENTIONS.md")
-	if err != nil {
-		slog.Warn("could not load CONVENTIONS.md", "error", err)
-	} else {
-		pc.Conventions = conventions
+	for _, f := range []struct {
+		path string
+		dest *string
+	}{
+		{"CONVENTIONS.md", &pc.Conventions},
+		{"ARCHITECTURE.md", &pc.Architecture},
+		{"README.md", &pc.Readme},
+	} {
+		content, err := gh.GetFileContent(ctx, f.path)
+		if err != nil {
+			slog.Warn("could not load repo context file", "file", f.path, "error", err)
+		} else {
+			*f.dest = content
+		}
 	}
 
 	return pc

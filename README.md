@@ -82,9 +82,13 @@ The orchestrator supports multiple repos in a single instance. Credentials are l
 ## Repo readiness
 
 The factory will skip repos that don't meet minimum requirements:
+- `README.md` — project overview, purpose, and setup instructions
+- `ARCHITECTURE.md` — module layout, data models, API surface, infrastructure dependencies
+- `CONVENTIONS.md` — coding standards, patterns, and best practices that all agents must follow
 - `CODEOWNERS` — protects security-critical paths from autonomous modification
 - `CLAUDE.md` — minimal context file with non-obvious constraints
-- `CONVENTIONS.md` — project conventions, coding standards, and best practices that all agents must follow
+
+The planner receives `README.md`, `ARCHITECTURE.md`, and `CONVENTIONS.md` as context to produce plans that fit the actual system. These docs can link to subdocuments for deeper detail.
 
 ## GitHub labels
 
