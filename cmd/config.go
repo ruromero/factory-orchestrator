@@ -15,7 +15,17 @@ type Config struct {
 	MaxIterations int          `json:"max_iterations"`
 	MaxCostBudget int          `json:"max_cost_budget"`
 	ShadowMode    bool         `json:"shadow_mode"`
+	Serena        SerenaConfig `json:"serena"`
 	Repos         []RepoConfig `json:"repos"`
+}
+
+type SerenaConfig struct {
+	Command string   `json:"command"`
+	Args    []string `json:"args"`
+}
+
+func (s SerenaConfig) Enabled() bool {
+	return s.Command != ""
 }
 
 type RepoConfig struct {

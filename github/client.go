@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"os/exec"
 )
 
 type TokenSource interface {
@@ -65,6 +67,30 @@ func NewClientWithAppAuth(auth *AppAuth, owner, repo string) *Client {
 
 func (c *Client) Owner() string { return c.owner }
 func (c *Client) Repo() string  { return c.repo }
+
+func (c *Client) CloneShallow(ctx context.Context) (string, func(), error) {
+	token, err := c.ts.Token(ctx)
+	if err != nil {
+		return "", nil, fmt.Errorf("get token for clone: %w", err)
+	}
+
+	dir, err := os.MkdirTemp("", "factory-clone-*")
+	if err != nil {
+		return "", nil, fmt.Errorf("create temp dir: %w", err)
+	}
+	cleanup := func() { os.RemoveAll(dir) }
+
+	cloneURL := fmt.Sprintf("https://x-access-token:%s@github.com/%s/%s.git", token, c.owner, c.repo)
+	cmd := exec.CommandContext(ctx, "git", "clone", "--depth=1", cloneURL, dir)
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
+	if err := cmd.Run(); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("git clone: %w", err)
+	}
+
+	return dir, cleanup, nil
+}
 
 func (c *Client) GetRaw(ctx context.Context, url string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)

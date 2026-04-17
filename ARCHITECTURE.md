@@ -45,6 +45,7 @@ agents/        One file per pipeline phase, each with a system prompt + model as
 
 harness/       Phase context assembly
   context.go   Loads README, ARCHITECTURE, CONVENTIONS from GitHub API
+  composite.go CompositeToolHandler — routes tool calls to correct handler by name
 
 sandbox/       Security boundary
   sanitize.go  Unicode normalization (strips zero-width, bidi, tag characters)
@@ -60,7 +61,9 @@ GitHub Issue (factory:ready)
   │
   ├─ SanitizeInput(title, body)
   ├─ LoadRepoContext(README, ARCHITECTURE, CONVENTIONS)
+  ├─ Clone repo (shallow) + start Serena MCP (if configured)
   │
+  ├─ Phase 0: Gather (qwen2.5-coder + doc tools + Serena LSP) → targeted context
   ├─ Phase 1: Research (Gemini) → external context
   ├─ Phase 2: Plan (deepseek-r1) → plan | needs_info | decompose
   ├─ Phase 3: Design (qwen2.5-coder) → API contracts, file structure
@@ -70,6 +73,14 @@ GitHub Issue (factory:ready)
 ```
 
 Each phase receives outputs from all prior phases via `PhaseContext`.
+
+### Context gathering (Phase 0)
+
+The gatherer uses a composite tool set:
+- **Doc tools** (`harness/tools.go`) — list/read documents and sections from repo docs via GitHub API
+- **Serena MCP** (`mcp/client.go`) — LSP-powered code navigation (find definitions, references, symbol search) via a shallow clone
+
+Both tool sets are registered in a `CompositeToolHandler` that routes calls by tool name. If Serena is not configured or fails to start, the gatherer degrades gracefully to doc-only tools.
 
 ## Authentication
 
@@ -102,7 +113,7 @@ factory:ready → factory:in-progress → factory:done
 ## Key interfaces
 
 - `github.TokenSource` — `Token(ctx) (string, error)` — implemented by `staticToken` and `AppAuth`
-- `ollama.ToolHandler` — `Execute(ctx, name, args) (string, error)` — implemented by `mcp.Client`
+- `ollama.ToolHandler` — `Execute(ctx, name, args) (string, error)` — implemented by `mcp.Client`, `ContextToolHandler`, `CompositeToolHandler`
 
 ## Infrastructure
 
@@ -115,4 +126,4 @@ factory:ready → factory:in-progress → factory:done
 
 ## Current status
 
-Phases 1-2 (research, plan) are wired end-to-end. Phases 3-6 (design, code, review, iterate) have agent implementations but are not yet called from the main orchestration loop. MCP tool integration is built but not yet connected to agent phases.
+Phases 0-2 (gather, research, plan) are wired end-to-end. Serena MCP is integrated into the gatherer for LSP-powered code navigation. Phases 3-6 (design, code, review, iterate) have agent implementations but are not yet called from the main orchestration loop.
