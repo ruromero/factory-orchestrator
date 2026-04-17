@@ -63,6 +63,38 @@ func NewClientWithAppAuth(auth *AppAuth, owner, repo string) *Client {
 	}
 }
 
+func (c *Client) Owner() string { return c.owner }
+func (c *Client) Repo() string  { return c.repo }
+
+func (c *Client) GetRaw(ctx context.Context, url string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	if err := c.setAuth(ctx, req); err != nil {
+		return "", err
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("github api GET %s: %d: %s", url, resp.StatusCode, body)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	return string(body), nil
+}
+
 func (c *Client) ListIssuesByLabel(ctx context.Context, label string) ([]Issue, error) {
 	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/issues?labels=%s&state=open", c.owner, c.repo, label)
 	var issues []Issue

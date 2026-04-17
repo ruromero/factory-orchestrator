@@ -132,10 +132,18 @@ func newGitHubClient(repo RepoConfig) (*github.Client, error) {
 func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, gem *gemini.Client, cfg Config, issue github.Issue) error {
 	log := slog.With("issue", issue.Number)
 
-	pc := harness.LoadRepoContext(ctx, gh)
+	rc := harness.LoadRepoContext(ctx, gh)
+	handler := harness.NewContextToolHandler(rc, gh)
 
 	issueTitle := sandbox.SanitizeInput(issue.Title)
 	issueBody := sandbox.SanitizeInput(issue.Body)
+
+	log.Info("starting context gathering phase")
+	gatheredCtx, err := agents.GatherContext(ctx, ol, issueTitle, issueBody, rc.Summaries(), harness.ContextTools(), handler)
+	if err != nil {
+		log.Warn("context gathering failed, continuing with summaries", "error", err)
+		gatheredCtx = rc.Summaries()
+	}
 
 	log.Info("starting research phase")
 	researchCtx, err := agents.Research(ctx, gem, issueTitle, issueBody)
@@ -145,7 +153,7 @@ func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, gem
 	}
 
 	log.Info("starting plan phase")
-	plan, err := agents.Plan(ctx, ol, issueTitle, issueBody, researchCtx, pc.Conventions, pc.Architecture, pc.Readme)
+	plan, err := agents.Plan(ctx, ol, issueTitle, issueBody, researchCtx, gatheredCtx, rc.Conventions())
 	if err != nil {
 		return fmt.Errorf("plan phase: %w", err)
 	}
