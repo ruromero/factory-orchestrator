@@ -255,7 +255,6 @@ func buildGatherTools(ctx context.Context, gh *github.Client, rc *harness.RepoCo
 	if err := serena.Start(ctx); err != nil {
 		log.Warn("failed to start Serena, using API-only tools", "error", err)
 		cloneCleanup()
-		os.RemoveAll(lspBinDir)
 		return contextTools, contextHandler, nil
 	}
 
@@ -271,9 +270,6 @@ func buildGatherTools(ctx context.Context, gh *github.Client, rc *harness.RepoCo
 			log.Warn("failed to stop Serena", "error", err)
 		}
 		cloneCleanup()
-		if lspBinDir != "" {
-			os.RemoveAll(lspBinDir)
-		}
 	}
 	return allTools, composite, cleanup
 }
