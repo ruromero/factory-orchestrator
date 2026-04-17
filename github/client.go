@@ -9,8 +9,18 @@ import (
 	"net/http"
 )
 
+type TokenSource interface {
+	Token(ctx context.Context) (string, error)
+}
+
+type staticToken string
+
+func (s staticToken) Token(_ context.Context) (string, error) {
+	return string(s), nil
+}
+
 type Client struct {
-	token string
+	ts    TokenSource
 	owner string
 	repo  string
 	http  *http.Client
@@ -37,7 +47,16 @@ type Comment struct {
 
 func NewClient(token, owner, repo string) *Client {
 	return &Client{
-		token: token,
+		ts:    staticToken(token),
+		owner: owner,
+		repo:  repo,
+		http:  &http.Client{},
+	}
+}
+
+func NewClientWithAppAuth(auth *AppAuth, owner, repo string) *Client {
+	return &Client{
+		ts:    auth,
 		owner: owner,
 		repo:  repo,
 		http:  &http.Client{},
@@ -93,16 +112,17 @@ func (c *Client) CreateIssue(ctx context.Context, title, body string, labels []s
 	return issue, nil
 }
 
-// GetFileContent fetches the contents of a file from the repo's default branch.
 func (c *Client) GetFileContent(ctx context.Context, path string) (string, error) {
 	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/contents/%s", c.owner, c.repo, path)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("Accept", "application/vnd.github.raw+json")
-	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+
+	if err := c.setAuth(ctx, req); err != nil {
+		return "", err
+	}
 
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -125,16 +145,16 @@ func (c *Client) GetFileContent(ctx context.Context, path string) (string, error
 	return string(body), nil
 }
 
-// FileExists checks if a file exists in the repo's default branch.
 func (c *Client) FileExists(ctx context.Context, path string) (bool, error) {
 	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/contents/%s", c.owner, c.repo, path)
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
 	if err != nil {
 		return false, err
 	}
-	req.Header.Set("Authorization", "Bearer "+c.token)
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+
+	if err := c.setAuth(ctx, req); err != nil {
+		return false, err
+	}
 
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -156,7 +176,7 @@ func (c *Client) get(ctx context.Context, url string, result any) error {
 	if err != nil {
 		return err
 	}
-	return c.do(req, result)
+	return c.do(ctx, req, result)
 }
 
 func (c *Client) post(ctx context.Context, url string, body any, result any) error {
@@ -168,7 +188,7 @@ func (c *Client) post(ctx context.Context, url string, body any, result any) err
 	if err != nil {
 		return err
 	}
-	return c.do(req, result)
+	return c.do(ctx, req, result)
 }
 
 func (c *Client) delete(ctx context.Context, url string) error {
@@ -176,13 +196,24 @@ func (c *Client) delete(ctx context.Context, url string) error {
 	if err != nil {
 		return err
 	}
-	return c.do(req, nil)
+	return c.do(ctx, req, nil)
 }
 
-func (c *Client) do(req *http.Request, result any) error {
-	req.Header.Set("Authorization", "Bearer "+c.token)
-	req.Header.Set("Accept", "application/vnd.github+json")
+func (c *Client) setAuth(ctx context.Context, req *http.Request) error {
+	token, err := c.ts.Token(ctx)
+	if err != nil {
+		return fmt.Errorf("get token: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	return nil
+}
+
+func (c *Client) do(ctx context.Context, req *http.Request, result any) error {
+	if err := c.setAuth(ctx, req); err != nil {
+		return err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
 	if req.Body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
