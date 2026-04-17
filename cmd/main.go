@@ -3,14 +3,20 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/ruromero/factory-orchestrator/agents"
+	"github.com/ruromero/factory-orchestrator/gemini"
 	"github.com/ruromero/factory-orchestrator/github"
+	"github.com/ruromero/factory-orchestrator/harness"
 	"github.com/ruromero/factory-orchestrator/ollama"
+	"github.com/ruromero/factory-orchestrator/sandbox"
 )
 
 func main() {
@@ -29,6 +35,11 @@ func main() {
 	slog.SetDefault(logger)
 
 	ol := ollama.NewClient(cfg.OllamaURL)
+
+	var gem *gemini.Client
+	if cfg.GeminiAPIKey != "" {
+		gem = gemini.NewClient(cfg.GeminiAPIKey)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -52,7 +63,7 @@ func main() {
 	for {
 		select {
 		case <-ticker.C:
-			pollAllRepos(ctx, ol, cfg)
+			pollAllRepos(ctx, ol, gem, cfg)
 		case <-sigCh:
 			slog.Info("shutting down")
 			cancel()
@@ -63,7 +74,7 @@ func main() {
 	}
 }
 
-func pollAllRepos(ctx context.Context, ol *ollama.Client, cfg Config) {
+func pollAllRepos(ctx context.Context, ol *ollama.Client, gem *gemini.Client, cfg Config) {
 	for _, repo := range cfg.Repos {
 		gh := github.NewClient(repo.Token, repo.Owner, repo.Repo)
 		log := slog.With("repo", repo.Owner+"/"+repo.Repo)
@@ -95,19 +106,107 @@ func pollAllRepos(ctx context.Context, ol *ollama.Client, cfg Config) {
 				log.Error("failed to remove label", "issue", issue.Number, "error", err)
 			}
 
-			if err := processIssue(ctx, gh, ol, cfg, issue); err != nil {
+			if err := processIssue(ctx, gh, ol, gem, cfg, issue); err != nil {
 				log.Error("failed to process issue", "issue", issue.Number, "error", err)
+				gh.AddLabel(ctx, issue.Number, "factory:needs-human")
 			}
 		}
 	}
 }
 
-func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, cfg Config, issue github.Issue) error {
-	// Phase 1: Research (Gemini) — TODO
+func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, gem *gemini.Client, cfg Config, issue github.Issue) error {
+	log := slog.With("issue", issue.Number)
+
+	// Load repo-level context
+	pc := harness.LoadRepoContext(ctx, gh)
+
+	issueTitle := sandbox.SanitizeInput(issue.Title)
+	issueBody := sandbox.SanitizeInput(issue.Body)
+
+	// Phase 1: Research
+	log.Info("starting research phase")
+	researchCtx, err := agents.Research(ctx, gem, issueTitle, issueBody)
+	if err != nil {
+		log.Warn("research phase failed, continuing without", "error", err)
+		researchCtx = ""
+	}
+
 	// Phase 2: Plan
-	// Phase 3: Design
-	// Phase 4: Code
-	// Phase 5: Review
-	// Phase 6: Iterate
-	return nil
+	log.Info("starting plan phase")
+	plan, err := agents.Plan(ctx, ol, issueTitle, issueBody, researchCtx, pc.Conventions)
+	if err != nil {
+		return fmt.Errorf("plan phase: %w", err)
+	}
+
+	switch plan.Outcome {
+	case "needs_info":
+		log.Info("planner needs more info")
+		comment := fmt.Sprintf("## Factory: Additional Information Needed\n\n%s", plan.Content)
+		if err := gh.CreateComment(ctx, issue.Number, comment); err != nil {
+			return fmt.Errorf("post needs-info comment: %w", err)
+		}
+		gh.RemoveLabel(ctx, issue.Number, "factory:in-progress")
+		return gh.AddLabel(ctx, issue.Number, "factory:needs-info")
+
+	case "decompose":
+		log.Info("planner decomposing issue")
+		comment := fmt.Sprintf("## Factory: Issue Decomposed\n\nThis issue is too complex for a single PR. Creating sub-issues.\n\n%s", plan.Content)
+		if err := gh.CreateComment(ctx, issue.Number, comment); err != nil {
+			return fmt.Errorf("post decompose comment: %w", err)
+		}
+		if err := createSubIssues(ctx, gh, issue.Number, plan.Content); err != nil {
+			return fmt.Errorf("create sub-issues: %w", err)
+		}
+		gh.RemoveLabel(ctx, issue.Number, "factory:in-progress")
+		return gh.AddLabel(ctx, issue.Number, "factory:tracking")
+
+	case "plan":
+		log.Info("plan produced, posting to issue")
+		comment := fmt.Sprintf("## Factory: Implementation Plan\n\n%s", plan.Content)
+		if researchCtx != "" {
+			comment += fmt.Sprintf("\n\n<details><summary>Research Context</summary>\n\n%s\n\n</details>", researchCtx)
+		}
+		if err := gh.CreateComment(ctx, issue.Number, comment); err != nil {
+			return fmt.Errorf("post plan comment: %w", err)
+		}
+
+		// Phase 3: Design — TODO
+		// Phase 4: Code — TODO
+		// Phase 5: Review — TODO
+		// Phase 6: Iterate — TODO
+
+		return nil
+	}
+
+	return fmt.Errorf("unknown plan outcome: %s", plan.Outcome)
+}
+
+func createSubIssues(ctx context.Context, gh *github.Client, parentNumber int, decomposeContent string) error {
+	lines := strings.Split(decomposeContent, "\n")
+	var subIssues []string
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "- ") || strings.HasPrefix(trimmed, "* ") {
+			title := strings.TrimLeft(trimmed, "-* ")
+			if title != "" {
+				subIssues = append(subIssues, title)
+			}
+		}
+	}
+
+	var checklist strings.Builder
+	checklist.WriteString(fmt.Sprintf("Sub-issues created from #%d:\n\n", parentNumber))
+
+	for _, title := range subIssues {
+		body := fmt.Sprintf("Parent issue: #%d\n\nSub-task: %s", parentNumber, title)
+		created, err := gh.CreateIssue(ctx, title, body, []string{"factory:ready"})
+		if err != nil {
+			return fmt.Errorf("create sub-issue %q: %w", title, err)
+		}
+		checklist.WriteString(fmt.Sprintf("- [ ] #%d — %s\n", created.Number, title))
+		slog.Info("created sub-issue", "parent", parentNumber, "child", created.Number, "title", title)
+	}
+
+	return gh.CreateComment(ctx, parentNumber, checklist.String())
 }

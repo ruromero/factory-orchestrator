@@ -55,6 +55,7 @@ The orchestrator supports multiple repos in a single instance:
 The factory will skip repos that don't meet minimum requirements:
 - `CODEOWNERS` — protects security-critical paths from autonomous modification
 - `CLAUDE.md` — minimal context file with non-obvious constraints
+- `CONVENTIONS.md` — project conventions, coding standards, and best practices that all agents must follow
 
 ## GitHub labels
 

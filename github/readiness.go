@@ -9,6 +9,7 @@ import (
 var requiredFiles = []string{
 	"CODEOWNERS",
 	"CLAUDE.md",
+	"CONVENTIONS.md",
 }
 
 type ReadinessResult struct {

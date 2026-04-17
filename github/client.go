@@ -93,6 +93,38 @@ func (c *Client) CreateIssue(ctx context.Context, title, body string, labels []s
 	return issue, nil
 }
 
+// GetFileContent fetches the contents of a file from the repo's default branch.
+func (c *Client) GetFileContent(ctx context.Context, path string) (string, error) {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/contents/%s", c.owner, c.repo, path)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Accept", "application/vnd.github.raw+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == 404 {
+		return "", fmt.Errorf("file not found: %s", path)
+	}
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("get file %s: %d: %s", path, resp.StatusCode, body)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	return string(body), nil
+}
+
 // FileExists checks if a file exists in the repo's default branch.
 func (c *Client) FileExists(ctx context.Context, path string) (bool, error) {
 	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/contents/%s", c.owner, c.repo, path)
