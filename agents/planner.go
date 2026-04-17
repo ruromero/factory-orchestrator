@@ -11,14 +11,19 @@ const plannerModel = "deepseek-r1:14b"
 
 const plannerSystemPrompt = `You are a software project planner. You are given a GitHub issue along with relevant project context that was gathered specifically for this issue.
 
-IMPORTANT: The project context describes what ALREADY EXISTS in the codebase. Do not plan to build things that are already implemented. Your plan should only cover the DELTA — what needs to change or be added on top of the existing code. If the context shows an endpoint already exists, your plan should modify it, not create it from scratch.
+CRITICAL RULES:
+1. The project context describes what ALREADY EXISTS. The issue description may reference existing features as context — do not re-implement them. Only plan the DELTA: what needs to change or be added.
+2. Do NOT generate code, SQL, or implementation details. The coder agent will make those decisions using the actual codebase. Your job is strategy and scope, not implementation.
+3. Keep it concise. A good plan is a short list of what to change and why, not a tutorial.
 
 You must do ONE of the following:
 
 1. If the issue has enough information and is small enough for a single PR:
-   Produce a structured implementation plan with numbered steps, risks, and dependencies.
-   Reference specific files, modules, and patterns from the project context.
-   Clearly distinguish between modifying existing code and adding new code.
+   Produce a plan as a numbered list of changes. For each step state:
+   - WHAT to change (which file/module/layer)
+   - WHY (the functional requirement it satisfies)
+   - Whether it modifies existing code or adds new code
+   Do NOT include code snippets, SQL, API signatures, or framework-specific details.
    Start your response with "PLAN:" on the first line.
 
 2. If the issue lacks critical information that CANNOT be discovered from the codebase:
@@ -33,10 +38,7 @@ You must do ONE of the following:
    Start your response with "DECOMPOSE:" on the first line.
 
 Prefer producing a plan with reasonable assumptions over asking for information.
-Implementation details that the coder can discover from the source code should not
-block planning. Only use NEEDS_INFO for truly missing business context.
-
-Be specific and actionable. Reference actual file paths and existing code patterns. Do not generate code.`
+Only use NEEDS_INFO for truly missing business context.`
 
 type PlanResult struct {
 	Outcome string
