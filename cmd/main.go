@@ -258,12 +258,14 @@ func buildGatherTools(ctx context.Context, gh *github.Client, rc *harness.RepoCo
 		return contextTools, contextHandler, nil
 	}
 
+	serenaReadTools := harness.FilterTools(serena.Tools(), serenaGatherAllowed)
+
 	composite := harness.NewCompositeToolHandler()
 	composite.Register(contextTools, contextHandler)
-	composite.Register(serena.Tools(), serena)
+	composite.Register(serenaReadTools, serena)
 
-	allTools := append(contextTools, serena.Tools()...)
-	log.Info("Serena started", "serena_tools", len(serena.Tools()), "total_tools", len(allTools))
+	allTools := append(contextTools, serenaReadTools...)
+	log.Info("Serena started", "serena_tools", len(serenaReadTools), "total_tools", len(allTools))
 
 	cleanup := func() {
 		if err := serena.Stop(); err != nil {
@@ -272,6 +274,16 @@ func buildGatherTools(ctx context.Context, gh *github.Client, rc *harness.RepoCo
 		cloneCleanup()
 	}
 	return allTools, composite, cleanup
+}
+
+var serenaGatherAllowed = map[string]bool{
+	"find_symbol":                    true,
+	"find_referencing_symbols":       true,
+	"find_referencing_code_snippets": true,
+	"get_symbols_overview":           true,
+	"read_file":                      true,
+	"list_dir":                       true,
+	"search_for_pattern":             true,
 }
 
 const readinessCommentMarker = "<!-- factory:readiness -->"
