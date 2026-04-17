@@ -4,12 +4,14 @@ Autonomous software development orchestrator. Polls GitHub issues tagged `factor
 
 ## Pipeline
 
-1. **Research** — Gemini API + Context7 MCP for current library docs
+1. **Research** — Gemini API for external context gathering
 2. **Plan** — deepseek-r1:14b decomposes the issue into an implementation plan
-3. **Design** — qwen2.5-coder:14b produces API contracts, data models, file structure
-4. **Code** — qwen2.5-coder:14b + Serena MCP (LSP tools) writes the implementation
-5. **Review** — phi4:14b (correctness + security + intent) + Qodo (GitHub AI reviewer)
-6. **Iterate** — qwen2.5-coder:14b applies review feedback (max N loops)
+3. **Design** — qwen2.5-coder:14b produces API contracts, data models, file structure *(not yet wired)*
+4. **Code** — qwen2.5-coder:14b + Serena MCP (LSP tools) writes the implementation *(not yet wired)*
+5. **Review** — phi4:14b (correctness + security + intent) + Qodo (GitHub AI reviewer) *(not yet wired)*
+6. **Iterate** — qwen2.5-coder:14b applies review feedback (max N loops) *(not yet wired)*
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed data flow and package layout.
 
 ## Requirements
 
@@ -82,9 +84,13 @@ The orchestrator supports multiple repos in a single instance. Credentials are l
 ## Repo readiness
 
 The factory will skip repos that don't meet minimum requirements:
+- `README.md` — project overview, purpose, and setup instructions
+- `ARCHITECTURE.md` — module layout, data models, API surface, infrastructure dependencies
+- `CONVENTIONS.md` — coding standards, patterns, and best practices that all agents must follow
 - `CODEOWNERS` — protects security-critical paths from autonomous modification
 - `CLAUDE.md` — minimal context file with non-obvious constraints
-- `CONVENTIONS.md` — project conventions, coding standards, and best practices that all agents must follow
+
+The planner receives `README.md`, `ARCHITECTURE.md`, and `CONVENTIONS.md` as context to produce plans that fit the actual system. These docs can link to subdocuments for deeper detail.
 
 ## GitHub labels
 

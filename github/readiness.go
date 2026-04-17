@@ -10,6 +10,8 @@ var requiredFiles = []string{
 	"CODEOWNERS",
 	"CLAUDE.md",
 	"CONVENTIONS.md",
+	"ARCHITECTURE.md",
+	"README.md",
 }
 
 type ReadinessResult struct {
