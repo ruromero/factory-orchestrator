@@ -7,7 +7,7 @@ import (
 	"github.com/ruromero/factory-orchestrator/ollama"
 )
 
-const reviewerModel = "phi4:14b"
+const reviewerModel = "qwen3:14b"
 
 const correctnessPrompt = `You are a senior engineer performing an adversarial code review. Your job is to find problems, not approve code.
 

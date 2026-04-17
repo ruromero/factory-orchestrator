@@ -38,10 +38,10 @@ mcp/           Model Context Protocol client
 agents/        One file per pipeline phase, each with a system prompt + model assignment
   researcher.go   Gemini 2.5 Flash — gathers external context
   planner.go      deepseek-r1:14b — produces plan, requests info, or decomposes
-  designer.go     qwen2.5-coder:14b — API contracts, data models
-  coder.go        qwen2.5-coder:14b — implementation with MCP tools
-  reviewer.go     phi4:14b — three reviews: correctness, security, intent
-  iterator.go     qwen2.5-coder:14b — applies review feedback
+  designer.go     qwen3:14b — API contracts, data models
+  coder.go        qwen3:14b — implementation with MCP tools
+  reviewer.go     qwen3:14b — three reviews: correctness, security, intent
+  iterator.go     qwen3:14b — applies review feedback
 
 harness/       Phase context assembly
   context.go   Loads README, ARCHITECTURE, CONVENTIONS from GitHub API
@@ -63,13 +63,13 @@ GitHub Issue (factory:ready)
   ├─ LoadRepoContext(README, ARCHITECTURE, CONVENTIONS)
   ├─ Clone repo (shallow) + start Serena MCP (if configured)
   │
-  ├─ Phase 0: Gather (qwen2.5-coder + doc tools + Serena LSP) → targeted context
+  ├─ Phase 0: Gather (qwen3 + doc tools + Serena LSP) → targeted context
   ├─ Phase 1: Research (Gemini) → external context
   ├─ Phase 2: Plan (deepseek-r1) → plan | needs_info | decompose
-  ├─ Phase 3: Design (qwen2.5-coder) → API contracts, file structure
-  ├─ Phase 4: Code (qwen2.5-coder + MCP) → implementation
-  ├─ Phase 5: Review (phi4) → correctness + security + intent
-  └─ Phase 6: Iterate (qwen2.5-coder) → apply feedback, loop to review
+  ├─ Phase 3: Design (qwen3) → API contracts, file structure
+  ├─ Phase 4: Code (qwen3 + MCP) → implementation
+  ├─ Phase 5: Review (qwen3) → correctness + security + intent
+  └─ Phase 6: Iterate (qwen3) → apply feedback, loop to review
 ```
 
 Each phase receives outputs from all prior phases via `PhaseContext`.

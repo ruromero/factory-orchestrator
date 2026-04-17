@@ -6,17 +6,17 @@ Autonomous software development orchestrator. Polls GitHub issues tagged `factor
 
 1. **Research** — Gemini API for external context gathering
 2. **Plan** — deepseek-r1:14b decomposes the issue into an implementation plan
-3. **Design** — qwen2.5-coder:14b produces API contracts, data models, file structure *(not yet wired)*
-4. **Code** — qwen2.5-coder:14b + Serena MCP (LSP tools) writes the implementation *(not yet wired)*
-5. **Review** — phi4:14b (correctness + security + intent) + Qodo (GitHub AI reviewer) *(not yet wired)*
-6. **Iterate** — qwen2.5-coder:14b applies review feedback (max N loops) *(not yet wired)*
+3. **Design** — qwen3:14b produces API contracts, data models, file structure *(not yet wired)*
+4. **Code** — qwen3:14b + Serena MCP (LSP tools) writes the implementation *(not yet wired)*
+5. **Review** — qwen3:14b (correctness + security + intent) + Qodo (GitHub AI reviewer) *(not yet wired)*
+6. **Iterate** — qwen3:14b applies review feedback (max N loops) *(not yet wired)*
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed data flow and package layout.
 
 ## Requirements
 
 - k3s cluster with [Ollama](https://ollama.com) deployed (GPU access)
-- Models pulled: `deepseek-r1:14b`, `qwen2.5-coder:14b`, `phi4:14b`
+- Models pulled: `deepseek-r1:14b`, `qwen3:14b`
 - GitHub App installed on target repos (recommended), or a GitHub PAT
 - Gemini API key (free tier)
 
