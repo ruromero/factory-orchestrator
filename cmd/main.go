@@ -209,7 +209,8 @@ func notifyReadinessFailure(ctx context.Context, gh *github.Client, readiness gi
 	for _, f := range readiness.Missing {
 		comment += fmt.Sprintf("- `%s`\n", f)
 	}
-	comment += "\nPlease add the missing files and relabel this issue `factory:ready` to retry."
+	comment += "\nSee [Repo readiness](https://github.com/ruromero/factory-orchestrator#repo-readiness) for details on required files.\n"
+	comment += "Once the missing files are added, relabel this issue `factory:ready` to retry."
 
 	for _, issue := range issues {
 		existing, err := gh.ListComments(ctx, issue.Number)
