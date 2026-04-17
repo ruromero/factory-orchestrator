@@ -11,11 +11,14 @@ const plannerModel = "deepseek-r1:14b"
 
 const plannerSystemPrompt = `You are a software project planner. You are given a GitHub issue along with relevant project context that was gathered specifically for this issue.
 
+IMPORTANT: The project context describes what ALREADY EXISTS in the codebase. Do not plan to build things that are already implemented. Your plan should only cover the DELTA — what needs to change or be added on top of the existing code. If the context shows an endpoint already exists, your plan should modify it, not create it from scratch.
+
 You must do ONE of the following:
 
 1. If the issue has enough information and is small enough for a single PR:
    Produce a structured implementation plan with numbered steps, risks, and dependencies.
    Reference specific files, modules, and patterns from the project context.
+   Clearly distinguish between modifying existing code and adding new code.
    Start your response with "PLAN:" on the first line.
 
 2. If the issue lacks critical information that CANNOT be discovered from the codebase:
