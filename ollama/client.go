@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 )
 
@@ -112,9 +113,13 @@ func (c *Client) ChatWithTools(ctx context.Context, req ChatRequest, handler Too
 		req.Messages = append(req.Messages, resp.Message)
 
 		for _, tc := range resp.Message.ToolCalls {
+			slog.Info("tool call", "tool", tc.Function.Name, "args", tc.Function.Arguments)
 			result, err := handler.Execute(ctx, tc.Function.Name, tc.Function.Arguments)
 			if err != nil {
+				slog.Warn("tool call failed", "tool", tc.Function.Name, "error", err)
 				result = fmt.Sprintf("error: %v", err)
+			} else {
+				slog.Info("tool call result", "tool", tc.Function.Name, "result_len", len(result))
 			}
 			req.Messages = append(req.Messages, Message{
 				Role:    "tool",
