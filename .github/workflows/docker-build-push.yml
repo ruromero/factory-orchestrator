@@ -38,6 +38,8 @@ jobs:
         with:
           context: .
           file: Dockerfile.serena
+          platforms: linux/amd64
+          provenance: mode=min
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
