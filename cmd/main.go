@@ -139,6 +139,8 @@ func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, gem
 	issueTitle := sandbox.SanitizeInput(issue.Title)
 	issueBody := sandbox.SanitizeInput(issue.Body)
 
+	commentHistory := loadHumanComments(ctx, gh, issue.Number)
+
 	log.Info("starting context gathering phase")
 	gatheredCtx, err := agents.GatherContext(ctx, ol, issueTitle, issueBody, rc.Summaries(), harness.ContextTools(), handler)
 	if err != nil {
@@ -154,7 +156,7 @@ func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, gem
 	}
 
 	log.Info("starting plan phase")
-	plan, err := agents.Plan(ctx, ol, issueTitle, issueBody, researchCtx, gatheredCtx, rc.Conventions())
+	plan, err := agents.Plan(ctx, ol, issueTitle, issueBody, researchCtx, gatheredCtx, rc.Conventions(), commentHistory)
 	if err != nil {
 		return fmt.Errorf("plan phase: %w", err)
 	}
@@ -195,6 +197,27 @@ func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, gem
 	}
 
 	return fmt.Errorf("unknown plan outcome: %s", plan.Outcome)
+}
+
+func loadHumanComments(ctx context.Context, gh *github.Client, issueNumber int) string {
+	comments, err := gh.ListComments(ctx, issueNumber)
+	if err != nil {
+		slog.Warn("could not load issue comments", "issue", issueNumber, "error", err)
+		return ""
+	}
+
+	var b strings.Builder
+	for _, c := range comments {
+		if strings.HasSuffix(c.User.Login, "[bot]") {
+			continue
+		}
+		body := sandbox.SanitizeInput(c.Body)
+		if body == "" {
+			continue
+		}
+		fmt.Fprintf(&b, "**@%s**:\n%s\n\n", c.User.Login, body)
+	}
+	return strings.TrimSpace(b.String())
 }
 
 const readinessCommentMarker = "<!-- factory:readiness -->"
