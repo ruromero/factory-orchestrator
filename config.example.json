@@ -1,6 +1,5 @@
 {
   "ollama_url": "http://ollama.ai.svc.cluster.local:11434",
-  "gemini_api_key": "",
   "poll_interval": "30s",
   "max_iterations": 3,
   "max_cost_budget": 100000,
@@ -9,12 +8,14 @@
     {
       "owner": "ruromero",
       "repo": "factory-orchestrator",
-      "token": "ghp_..."
+      "app_id": 123456,
+      "installation_id": 789012
     },
     {
       "owner": "ruromero",
       "repo": "bunko.sh",
-      "token": "ghp_..."
+      "app_id": 123456,
+      "installation_id": 789013
     }
   ]
 }

@@ -76,7 +76,11 @@ func main() {
 
 func pollAllRepos(ctx context.Context, ol *ollama.Client, gem *gemini.Client, cfg Config) {
 	for _, repo := range cfg.Repos {
-		gh := github.NewClient(repo.Token, repo.Owner, repo.Repo)
+		gh, err := newGitHubClient(repo)
+		if err != nil {
+			slog.Error("failed to create github client", "repo", repo.Owner+"/"+repo.Repo, "error", err)
+			continue
+		}
 		log := slog.With("repo", repo.Owner+"/"+repo.Repo)
 
 		readiness, err := gh.CheckReadiness(ctx)
@@ -114,16 +118,25 @@ func pollAllRepos(ctx context.Context, ol *ollama.Client, gem *gemini.Client, cf
 	}
 }
 
+func newGitHubClient(repo RepoConfig) (*github.Client, error) {
+	if repo.UsesAppAuth() {
+		auth, err := github.NewAppAuth(repo.AppID, repo.PrivateKeyPath, repo.InstallationID)
+		if err != nil {
+			return nil, fmt.Errorf("app auth: %w", err)
+		}
+		return github.NewClientWithAppAuth(auth, repo.Owner, repo.Repo), nil
+	}
+	return github.NewClient(repo.Token, repo.Owner, repo.Repo), nil
+}
+
 func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, gem *gemini.Client, cfg Config, issue github.Issue) error {
 	log := slog.With("issue", issue.Number)
 
-	// Load repo-level context
 	pc := harness.LoadRepoContext(ctx, gh)
 
 	issueTitle := sandbox.SanitizeInput(issue.Title)
 	issueBody := sandbox.SanitizeInput(issue.Body)
 
-	// Phase 1: Research
 	log.Info("starting research phase")
 	researchCtx, err := agents.Research(ctx, gem, issueTitle, issueBody)
 	if err != nil {
@@ -131,7 +144,6 @@ func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, gem
 		researchCtx = ""
 	}
 
-	// Phase 2: Plan
 	log.Info("starting plan phase")
 	plan, err := agents.Plan(ctx, ol, issueTitle, issueBody, researchCtx, pc.Conventions)
 	if err != nil {
@@ -169,11 +181,6 @@ func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, gem
 		if err := gh.CreateComment(ctx, issue.Number, comment); err != nil {
 			return fmt.Errorf("post plan comment: %w", err)
 		}
-
-		// Phase 3: Design — TODO
-		// Phase 4: Code — TODO
-		// Phase 5: Review — TODO
-		// Phase 6: Iterate — TODO
 
 		return nil
 	}

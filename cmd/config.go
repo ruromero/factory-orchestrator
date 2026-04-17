@@ -10,7 +10,7 @@ import (
 
 type Config struct {
 	OllamaURL     string       `json:"ollama_url"`
-	GeminiAPIKey  string       `json:"gemini_api_key"`
+	GeminiAPIKey  string       `json:"gemini_api_key,omitempty"`
 	PollInterval  Duration     `json:"poll_interval"`
 	MaxIterations int          `json:"max_iterations"`
 	MaxCostBudget int          `json:"max_cost_budget"`
@@ -19,9 +19,16 @@ type Config struct {
 }
 
 type RepoConfig struct {
-	Owner string `json:"owner"`
-	Repo  string `json:"repo"`
-	Token string `json:"token"`
+	Owner          string `json:"owner"`
+	Repo           string `json:"repo"`
+	Token          string `json:"token,omitempty"`
+	AppID          int64  `json:"app_id,omitempty"`
+	PrivateKeyPath string `json:"private_key_path,omitempty"`
+	InstallationID int64  `json:"installation_id,omitempty"`
+}
+
+func (r RepoConfig) UsesAppAuth() bool {
+	return r.AppID != 0 && r.PrivateKeyPath != "" && r.InstallationID != 0
 }
 
 type Duration struct {
@@ -63,13 +70,28 @@ func loadConfig(path string) (Config, error) {
 		return Config{}, fmt.Errorf("parse config: %w", err)
 	}
 
+	if v := os.Getenv("GEMINI_API_KEY"); v != "" {
+		cfg.GeminiAPIKey = v
+	}
+
+	if v := os.Getenv("GITHUB_APP_PRIVATE_KEY_PATH"); v != "" {
+		for i := range cfg.Repos {
+			if cfg.Repos[i].PrivateKeyPath == "" {
+				cfg.Repos[i].PrivateKeyPath = v
+			}
+		}
+	}
+
 	if len(cfg.Repos) == 0 {
 		return Config{}, fmt.Errorf("no repos configured")
 	}
 
 	for i, r := range cfg.Repos {
-		if r.Owner == "" || r.Repo == "" || r.Token == "" {
-			return Config{}, fmt.Errorf("repo %d: owner, repo, and token are required", i)
+		if r.Owner == "" || r.Repo == "" {
+			return Config{}, fmt.Errorf("repo %d: owner and repo are required", i)
+		}
+		if !r.UsesAppAuth() && r.Token == "" {
+			return Config{}, fmt.Errorf("repo %d: either token or app auth (app_id, private_key_path, installation_id) required", i)
 		}
 	}
 
