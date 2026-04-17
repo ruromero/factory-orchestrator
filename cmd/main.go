@@ -89,7 +89,8 @@ func pollAllRepos(ctx context.Context, ol *ollama.Client, gem *gemini.Client, cf
 			continue
 		}
 		if !readiness.Ready {
-			log.Warn("repo not ready, skipping", "missing", readiness.Missing)
+			log.Warn("repo not ready", "missing", readiness.Missing)
+			notifyReadinessFailure(ctx, gh, readiness)
 			continue
 		}
 
@@ -194,6 +195,46 @@ func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, gem
 	}
 
 	return fmt.Errorf("unknown plan outcome: %s", plan.Outcome)
+}
+
+const readinessCommentMarker = "<!-- factory:readiness -->"
+
+func notifyReadinessFailure(ctx context.Context, gh *github.Client, readiness github.ReadinessResult) {
+	issues, err := gh.ListIssuesByLabel(ctx, "factory:ready")
+	if err != nil || len(issues) == 0 {
+		return
+	}
+
+	comment := fmt.Sprintf("%s\n## Factory: Repository Not Ready\n\nThis repository is missing required files:\n\n", readinessCommentMarker)
+	for _, f := range readiness.Missing {
+		comment += fmt.Sprintf("- `%s`\n", f)
+	}
+	comment += "\nPlease add the missing files and relabel this issue `factory:ready` to retry."
+
+	for _, issue := range issues {
+		existing, err := gh.ListComments(ctx, issue.Number)
+		if err != nil {
+			continue
+		}
+		alreadyNotified := false
+		for _, c := range existing {
+			if strings.Contains(c.Body, readinessCommentMarker) {
+				alreadyNotified = true
+				break
+			}
+		}
+		if alreadyNotified {
+			continue
+		}
+
+		if err := gh.CreateComment(ctx, issue.Number, comment); err != nil {
+			slog.Error("failed to post readiness comment", "issue", issue.Number, "error", err)
+			continue
+		}
+		gh.RemoveLabel(ctx, issue.Number, "factory:ready")
+		gh.AddLabel(ctx, issue.Number, "factory:requirements")
+		slog.Info("notified issue about missing requirements", "issue", issue.Number, "missing", readiness.Missing)
+	}
 }
 
 func createSubIssues(ctx context.Context, gh *github.Client, parentNumber int, decomposeContent string) error {
