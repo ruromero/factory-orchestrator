@@ -103,6 +103,7 @@ The planner receives `README.md`, `ARCHITECTURE.md`, and `CONVENTIONS.md` as con
 | `factory:done` | PR opened, ready for human merge |
 | `factory:tracking` | Parent issue decomposed into sub-issues |
 | `factory:blocked` | Sub-issue waiting on dependency |
+| `factory:requirements` | Repo missing required files (ARCHITECTURE.md, etc.) |
 
 ## k8s deployment
 
