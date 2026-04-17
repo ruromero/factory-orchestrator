@@ -1,11 +1,19 @@
-FROM golang:1.26-alpine AS build
+FROM golang:1.24-alpine AS build
 WORKDIR /src
 COPY go.mod ./
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -o /orchestrator ./cmd/
 
-FROM scratch
-COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+FROM python:3.13-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+RUN uv tool install serena-agent@latest --prerelease=allow
+
+ENV PATH="/root/.local/bin:$PATH"
+
 COPY --from=build /orchestrator /orchestrator
 ENTRYPOINT ["/orchestrator"]
