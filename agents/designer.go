@@ -7,7 +7,7 @@ import (
 	"github.com/ruromero/factory-orchestrator/ollama"
 )
 
-const designerModel = "qwen2.5-coder:14b"
+const designerModel = "qwen3:14b"
 
 const designerSystemPrompt = `You are a software architect. Given an implementation plan, produce a technical design document that includes:
 

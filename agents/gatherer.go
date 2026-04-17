@@ -7,7 +7,7 @@ import (
 	"github.com/ruromero/factory-orchestrator/ollama"
 )
 
-const gathererModel = "qwen2.5-coder:14b"
+const gathererModel = "qwen3:14b"
 
 const gathererSystemPrompt = `You are a context gathering agent for a software development planner.
 

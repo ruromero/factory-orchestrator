@@ -7,7 +7,7 @@ import (
 	"github.com/ruromero/factory-orchestrator/ollama"
 )
 
-const coderModel = "qwen2.5-coder:14b"
+const coderModel = "qwen3:14b"
 
 const coderSystemPrompt = `You are a software developer. Given a technical design, implement the code changes.
 
