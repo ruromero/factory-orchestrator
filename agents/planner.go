@@ -9,10 +9,13 @@ import (
 
 const plannerModel = "deepseek-r1:14b"
 
-const plannerSystemPrompt = `You are a software project planner. Given a GitHub issue, you must do ONE of the following:
+const plannerSystemPrompt = `You are a software project planner. You are given a GitHub issue along with relevant project context that was gathered specifically for this issue.
+
+You must do ONE of the following:
 
 1. If the issue has enough information and is small enough for a single PR:
    Produce a structured implementation plan with numbered steps, risks, and dependencies.
+   Reference specific files, modules, and patterns from the project context.
    Start your response with "PLAN:" on the first line.
 
 2. If the issue lacks critical information needed to proceed:
@@ -24,20 +27,17 @@ const plannerSystemPrompt = `You are a software project planner. Given a GitHub 
    List each sub-issue with a title, description, and dependency order.
    Start your response with "DECOMPOSE:" on the first line.
 
-Be specific and actionable. Do not generate code.`
+Be specific and actionable. Reference actual file paths and existing code patterns. Do not generate code.`
 
 type PlanResult struct {
-	Outcome string // "plan", "needs_info", or "decompose"
+	Outcome string
 	Content string
 }
 
-func Plan(ctx context.Context, ol *ollama.Client, issueTitle, issueBody, researchContext, conventions, architecture, readme string) (PlanResult, error) {
+func Plan(ctx context.Context, ol *ollama.Client, issueTitle, issueBody, researchContext, gatheredContext, conventions string) (PlanResult, error) {
 	userPrompt := fmt.Sprintf("## Issue: %s\n\n%s", issueTitle, issueBody)
-	if readme != "" {
-		userPrompt += fmt.Sprintf("\n\n## Project Overview\n\n%s", readme)
-	}
-	if architecture != "" {
-		userPrompt += fmt.Sprintf("\n\n## Architecture\n\n%s", architecture)
+	if gatheredContext != "" {
+		userPrompt += fmt.Sprintf("\n\n## Project Context\n\n%s", gatheredContext)
 	}
 	if conventions != "" {
 		userPrompt += fmt.Sprintf("\n\n## Project Conventions\n\nFollow these conventions in your plan:\n\n%s", conventions)
