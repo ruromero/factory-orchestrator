@@ -28,3 +28,13 @@ func (c *CompositeToolHandler) Execute(ctx context.Context, name string, args ma
 	}
 	return h.Execute(ctx, name, args)
 }
+
+func FilterTools(tools []ollama.Tool, allowed map[string]bool) []ollama.Tool {
+	var filtered []ollama.Tool
+	for _, t := range tools {
+		if allowed[t.Function.Name] {
+			filtered = append(filtered, t)
+		}
+	}
+	return filtered
+}
