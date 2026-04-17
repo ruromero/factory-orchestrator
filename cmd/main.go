@@ -15,6 +15,7 @@ import (
 	"github.com/ruromero/factory-orchestrator/gemini"
 	"github.com/ruromero/factory-orchestrator/github"
 	"github.com/ruromero/factory-orchestrator/harness"
+	"github.com/ruromero/factory-orchestrator/mcp"
 	"github.com/ruromero/factory-orchestrator/ollama"
 	"github.com/ruromero/factory-orchestrator/sandbox"
 )
@@ -134,15 +135,19 @@ func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, gem
 	log := slog.With("issue", issue.Number)
 
 	rc := harness.LoadRepoContext(ctx, gh)
-	handler := harness.NewContextToolHandler(rc, gh)
 
 	issueTitle := sandbox.SanitizeInput(issue.Title)
 	issueBody := sandbox.SanitizeInput(issue.Body)
 
 	commentHistory := loadHumanComments(ctx, gh, issue.Number)
 
+	tools, handler, cleanup := buildGatherTools(ctx, gh, rc, cfg, log)
+	if cleanup != nil {
+		defer cleanup()
+	}
+
 	log.Info("starting context gathering phase")
-	gatheredCtx, err := agents.GatherContext(ctx, ol, issueTitle, issueBody, rc.Summaries(), harness.ContextTools(), handler)
+	gatheredCtx, err := agents.GatherContext(ctx, ol, issueTitle, issueBody, rc.Summaries(), tools, handler)
 	if err != nil {
 		log.Warn("context gathering failed, continuing with summaries", "error", err)
 		gatheredCtx = rc.Summaries()
@@ -218,6 +223,44 @@ func loadHumanComments(ctx context.Context, gh *github.Client, issueNumber int) 
 		fmt.Fprintf(&b, "**@%s**:\n%s\n\n", c.User.Login, body)
 	}
 	return strings.TrimSpace(b.String())
+}
+
+func buildGatherTools(ctx context.Context, gh *github.Client, rc *harness.RepoContext, cfg Config, log *slog.Logger) ([]ollama.Tool, ollama.ToolHandler, func()) {
+	contextHandler := harness.NewContextToolHandler(rc, gh)
+	contextTools := harness.ContextTools()
+
+	if !cfg.Serena.Enabled() {
+		return contextTools, contextHandler, nil
+	}
+
+	cloneDir, cloneCleanup, err := gh.CloneShallow(ctx)
+	if err != nil {
+		log.Warn("failed to clone repo for Serena, using API-only tools", "error", err)
+		return contextTools, contextHandler, nil
+	}
+
+	args := append(cfg.Serena.Args, "--workspace", cloneDir)
+	serena := mcp.NewClient(cfg.Serena.Command, args...)
+	if err := serena.Start(ctx); err != nil {
+		log.Warn("failed to start Serena, using API-only tools", "error", err)
+		cloneCleanup()
+		return contextTools, contextHandler, nil
+	}
+
+	composite := harness.NewCompositeToolHandler()
+	composite.Register(contextTools, contextHandler)
+	composite.Register(serena.Tools(), serena)
+
+	allTools := append(contextTools, serena.Tools()...)
+	log.Info("Serena started", "serena_tools", len(serena.Tools()), "total_tools", len(allTools))
+
+	cleanup := func() {
+		if err := serena.Stop(); err != nil {
+			log.Warn("failed to stop Serena", "error", err)
+		}
+		cloneCleanup()
+	}
+	return allTools, composite, cleanup
 }
 
 const readinessCommentMarker = "<!-- factory:readiness -->"

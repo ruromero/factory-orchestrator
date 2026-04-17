@@ -4,6 +4,10 @@
   "max_iterations": 3,
   "max_cost_budget": 100000,
   "shadow_mode": true,
+  "serena": {
+    "command": "uvx",
+    "args": ["serena"]
+  },
   "repos": [
     {
       "owner": "ruromero",
