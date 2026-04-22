@@ -399,7 +399,7 @@ var serenaCoderAllowed = map[string]bool{
 	"replace_symbol_body":            true,
 	"insert_before_symbol":           true,
 	"insert_after_symbol":            true,
-	"replace_content":               true,
+	"replace_content":                true,
 }
 
 func parseCodeOutput(output string) []github.FileChange {
