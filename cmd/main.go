@@ -137,6 +137,54 @@ func newGitHubClient(repo RepoConfig) (*github.Client, error) {
 	return github.NewClient(repo.Token, repo.Owner, repo.Repo), nil
 }
 
+type serenaSession struct {
+	cloneDir string
+	serena   *mcp.Client
+	cleanup  func()
+}
+
+func startSerena(ctx context.Context, gh *github.Client, cfg Config, log *slog.Logger) *serenaSession {
+	if !cfg.Serena.Enabled() {
+		return nil
+	}
+
+	cloneDir, cloneCleanup, err := gh.CloneShallow(ctx)
+	if err != nil {
+		log.Warn("failed to clone repo for Serena", "error", err)
+		return nil
+	}
+
+	lspBinDir, err := harness.InstallLanguageServers(ctx, cloneDir)
+	if err != nil {
+		log.Warn("failed to set up language servers", "error", err)
+	}
+
+	args := append(cfg.Serena.Args, "--project", cloneDir)
+	serena := mcp.NewClient(cfg.Serena.Command, args...)
+	if lspBinDir != "" {
+		env := os.Environ()
+		npmBin := fmt.Sprintf("%s/bin", lspBinDir)
+		env = append(env, fmt.Sprintf("PATH=%s:%s:%s", lspBinDir, npmBin, os.Getenv("PATH")))
+		serena.SetEnv(env)
+	}
+	if err := serena.Start(ctx); err != nil {
+		log.Warn("failed to start Serena", "error", err)
+		cloneCleanup()
+		return nil
+	}
+
+	return &serenaSession{
+		cloneDir: cloneDir,
+		serena:   serena,
+		cleanup: func() {
+			if err := serena.Stop(); err != nil {
+				log.Warn("failed to stop Serena", "error", err)
+			}
+			cloneCleanup()
+		},
+	}
+}
+
 func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, gem *gemini.Client, planner *openai.Client, cfg Config, issue github.Issue) error {
 	log := slog.With("issue", issue.Number)
 
@@ -147,13 +195,15 @@ func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, gem
 
 	commentHistory := loadHumanComments(ctx, gh, issue.Number)
 
-	tools, handler, cleanup := buildGatherTools(ctx, gh, rc, cfg, log)
-	if cleanup != nil {
-		defer cleanup()
+	sess := startSerena(ctx, gh, cfg, log)
+	if sess != nil {
+		defer sess.cleanup()
 	}
 
+	gatherTools, gatherHandler := buildGatherTools(rc, gh, sess)
+
 	log.Info("starting context gathering phase")
-	gatheredCtx, err := agents.GatherContext(ctx, ol, issueTitle, issueBody, rc.Summaries(), tools, handler)
+	gatheredCtx, err := agents.GatherContext(ctx, ol, issueTitle, issueBody, rc.Summaries(), gatherTools, gatherHandler)
 	if err != nil {
 		log.Warn("context gathering failed, continuing with summaries", "error", err)
 		gatheredCtx = rc.Summaries()
@@ -204,6 +254,77 @@ func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, gem
 			return fmt.Errorf("post plan comment: %w", err)
 		}
 
+		log.Info("starting design phase")
+		design, err := agents.Design(ctx, ol, plan.Content, researchCtx, rc.Conventions())
+		if err != nil {
+			return fmt.Errorf("design phase: %w", err)
+		}
+
+		log.Info("starting code phase")
+		coderTools, coderHandler := buildCoderTools(sess)
+		code, err := agents.Code(ctx, ol, design, researchCtx, rc.Conventions(), coderTools, coderHandler)
+		if err != nil {
+			return fmt.Errorf("code phase: %w", err)
+		}
+
+		log.Info("starting review phase")
+		review, err := agents.Review(ctx, ol, code, design, plan.Content, rc.Conventions(), gatherTools, gatherHandler)
+		if err != nil {
+			return fmt.Errorf("review phase: %w", err)
+		}
+
+		for i := 0; i < cfg.MaxIterations && reviewNeedsIteration(review); i++ {
+			log.Info("starting iteration", "iteration", i+1, "max", cfg.MaxIterations)
+			feedback := formatReviewFeedback(review)
+			code, err = agents.Iterate(ctx, ol, code, feedback, coderTools, coderHandler)
+			if err != nil {
+				return fmt.Errorf("iterate phase %d: %w", i+1, err)
+			}
+			review, err = agents.Review(ctx, ol, code, design, plan.Content, rc.Conventions(), gatherTools, gatherHandler)
+			if err != nil {
+				return fmt.Errorf("review phase (iteration %d): %w", i+1, err)
+			}
+		}
+
+		files := parseCodeOutput(code)
+		if len(files) == 0 {
+			return fmt.Errorf("no file changes parsed from code output")
+		}
+
+		if cfg.ShadowMode {
+			log.Info("shadow mode: posting code as comment instead of PR", "files", len(files))
+			comment := fmt.Sprintf("## Factory: Implementation (Shadow Mode)\n\n%d file(s) generated.\n\n%s", len(files), code)
+			gh.CreateComment(ctx, issue.Number, comment)
+			gh.RemoveLabel(ctx, issue.Number, "factory:in-progress")
+			gh.AddLabel(ctx, issue.Number, "factory:done")
+			return nil
+		}
+
+		branchName := fmt.Sprintf("factory/issue-%d", issue.Number)
+		baseSHA, err := gh.GetBranchSHA(ctx, "main")
+		if err != nil {
+			return fmt.Errorf("get base branch SHA: %w", err)
+		}
+		if err := gh.CreateBranch(ctx, branchName, baseSHA); err != nil {
+			return fmt.Errorf("create branch: %w", err)
+		}
+
+		commitMsg := fmt.Sprintf("feat: %s (#%d)", issueTitle, issue.Number)
+		if _, err := gh.CreateCommit(ctx, branchName, commitMsg, files); err != nil {
+			return fmt.Errorf("create commit: %w", err)
+		}
+
+		prTitle := fmt.Sprintf("feat: %s", issueTitle)
+		prBody := fmt.Sprintf("Closes #%d\n\n## Plan\n\n%s\n\n## Review\n\n### Correctness\n%s\n\n### Security\n%s\n\n### Intent\n%s",
+			issue.Number, plan.Content, review.Correctness, review.Security, review.Intent)
+		pr, err := gh.CreatePullRequest(ctx, prTitle, prBody, branchName, "main")
+		if err != nil {
+			return fmt.Errorf("create PR: %w", err)
+		}
+
+		log.Info("PR created", "pr", pr.Number, "url", pr.HTMLURL)
+		gh.RemoveLabel(ctx, issue.Number, "factory:in-progress")
+		gh.AddLabel(ctx, issue.Number, "factory:done")
 		return nil
 	}
 
@@ -231,55 +352,30 @@ func loadHumanComments(ctx context.Context, gh *github.Client, issueNumber int) 
 	return strings.TrimSpace(b.String())
 }
 
-func buildGatherTools(ctx context.Context, gh *github.Client, rc *harness.RepoContext, cfg Config, log *slog.Logger) ([]ollama.Tool, ollama.ToolHandler, func()) {
+func buildGatherTools(rc *harness.RepoContext, gh *github.Client, sess *serenaSession) ([]ollama.Tool, ollama.ToolHandler) {
 	contextHandler := harness.NewContextToolHandler(rc, gh)
 	contextTools := harness.ContextTools()
 
-	if !cfg.Serena.Enabled() {
-		return contextTools, contextHandler, nil
+	if sess == nil {
+		return contextTools, contextHandler
 	}
 
-	cloneDir, cloneCleanup, err := gh.CloneShallow(ctx)
-	if err != nil {
-		log.Warn("failed to clone repo for Serena, using API-only tools", "error", err)
-		return contextTools, contextHandler, nil
-	}
-
-	lspBinDir, err := harness.InstallLanguageServers(ctx, cloneDir)
-	if err != nil {
-		log.Warn("failed to set up language servers", "error", err)
-	}
-
-	args := append(cfg.Serena.Args, "--project", cloneDir)
-	serena := mcp.NewClient(cfg.Serena.Command, args...)
-	if lspBinDir != "" {
-		env := os.Environ()
-		npmBin := fmt.Sprintf("%s/bin", lspBinDir)
-		env = append(env, fmt.Sprintf("PATH=%s:%s:%s", lspBinDir, npmBin, os.Getenv("PATH")))
-		serena.SetEnv(env)
-	}
-	if err := serena.Start(ctx); err != nil {
-		log.Warn("failed to start Serena, using API-only tools", "error", err)
-		cloneCleanup()
-		return contextTools, contextHandler, nil
-	}
-
-	serenaReadTools := harness.FilterTools(serena.Tools(), serenaGatherAllowed)
+	serenaReadTools := harness.FilterTools(sess.serena.Tools(), serenaGatherAllowed)
 
 	composite := harness.NewCompositeToolHandler()
 	composite.Register(contextTools, contextHandler)
-	composite.Register(serenaReadTools, serena)
+	composite.Register(serenaReadTools, sess.serena)
 
 	allTools := append(contextTools, serenaReadTools...)
-	log.Info("Serena started", "serena_tools", len(serenaReadTools), "total_tools", len(allTools))
+	return allTools, composite
+}
 
-	cleanup := func() {
-		if err := serena.Stop(); err != nil {
-			log.Warn("failed to stop Serena", "error", err)
-		}
-		cloneCleanup()
+func buildCoderTools(sess *serenaSession) ([]ollama.Tool, ollama.ToolHandler) {
+	if sess == nil {
+		return nil, nil
 	}
-	return allTools, composite, cleanup
+	tools := harness.FilterTools(sess.serena.Tools(), serenaCoderAllowed)
+	return tools, sess.serena
 }
 
 var serenaGatherAllowed = map[string]bool{
@@ -290,6 +386,65 @@ var serenaGatherAllowed = map[string]bool{
 	"read_file":                      true,
 	"list_dir":                       true,
 	"search_for_pattern":             true,
+}
+
+var serenaCoderAllowed = map[string]bool{
+	"find_symbol":                    true,
+	"find_referencing_symbols":       true,
+	"find_referencing_code_snippets": true,
+	"get_symbols_overview":           true,
+	"read_file":                      true,
+	"list_dir":                       true,
+	"search_for_pattern":             true,
+	"replace_symbol_body":            true,
+	"insert_before_symbol":           true,
+	"insert_after_symbol":            true,
+	"replace_content":                true,
+}
+
+func parseCodeOutput(output string) []github.FileChange {
+	var files []github.FileChange
+	lines := strings.Split(output, "\n")
+	var currentPath string
+	var content strings.Builder
+	inBlock := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "FILE:") {
+			currentPath = strings.TrimSpace(strings.TrimPrefix(trimmed, "FILE:"))
+			continue
+		}
+		if !inBlock && strings.HasPrefix(trimmed, "```") && currentPath != "" {
+			inBlock = true
+			content.Reset()
+			continue
+		}
+		if inBlock && trimmed == "```" {
+			files = append(files, github.FileChange{
+				Path:    currentPath,
+				Content: strings.TrimRight(content.String(), "\n"),
+			})
+			currentPath = ""
+			inBlock = false
+			continue
+		}
+		if inBlock {
+			content.WriteString(line)
+			content.WriteString("\n")
+		}
+	}
+	return files
+}
+
+func reviewNeedsIteration(review agents.ReviewResult) bool {
+	combined := review.Correctness + review.Security + review.Intent
+	return strings.Contains(combined, "[CRITICAL]") || strings.Contains(combined, "[MEDIUM]")
+}
+
+func formatReviewFeedback(review agents.ReviewResult) string {
+	return fmt.Sprintf("## Correctness Review\n\n%s\n\n## Security Review\n\n%s\n\n## Intent Review\n\n%s",
+		review.Correctness, review.Security, review.Intent)
 }
 
 const readinessCommentMarker = "<!-- factory:readiness -->"
