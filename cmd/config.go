@@ -9,14 +9,21 @@ import (
 )
 
 type Config struct {
-	OllamaURL     string       `json:"ollama_url"`
-	GeminiAPIKey  string       `json:"gemini_api_key,omitempty"`
-	PollInterval  Duration     `json:"poll_interval"`
-	MaxIterations int          `json:"max_iterations"`
-	MaxCostBudget int          `json:"max_cost_budget"`
-	ShadowMode    bool         `json:"shadow_mode"`
-	Serena        SerenaConfig `json:"serena"`
-	Repos         []RepoConfig `json:"repos"`
+	OllamaURL     string        `json:"ollama_url"`
+	GeminiAPIKey  string        `json:"gemini_api_key,omitempty"`
+	Planner       PlannerConfig `json:"planner"`
+	PollInterval  Duration      `json:"poll_interval"`
+	MaxIterations int           `json:"max_iterations"`
+	MaxCostBudget int           `json:"max_cost_budget"`
+	ShadowMode    bool          `json:"shadow_mode"`
+	Serena        SerenaConfig  `json:"serena"`
+	Repos         []RepoConfig  `json:"repos"`
+}
+
+type PlannerConfig struct {
+	BaseURL string `json:"base_url"`
+	Model   string `json:"model"`
+	APIKey  string `json:"api_key,omitempty"`
 }
 
 type SerenaConfig struct {
@@ -82,6 +89,10 @@ func loadConfig(path string) (Config, error) {
 
 	if v := os.Getenv("GEMINI_API_KEY"); v != "" {
 		cfg.GeminiAPIKey = v
+	}
+
+	if v := os.Getenv("PLANNER_API_KEY"); v != "" {
+		cfg.Planner.APIKey = v
 	}
 
 	if v := os.Getenv("GITHUB_APP_PRIVATE_KEY_PATH"); v != "" {

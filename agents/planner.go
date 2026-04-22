@@ -4,10 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ruromero/factory-orchestrator/ollama"
+	"github.com/ruromero/factory-orchestrator/openai"
 )
-
-const plannerModel = "deepseek-r1:14b"
 
 const plannerSystemPrompt = `You are a software project planner. You are given a GitHub issue along with relevant project context that was gathered specifically for this issue.
 
@@ -45,7 +43,11 @@ type PlanResult struct {
 	Content string
 }
 
-func Plan(ctx context.Context, ol *ollama.Client, issueTitle, issueBody, researchContext, gatheredContext, conventions, commentHistory string) (PlanResult, error) {
+func Plan(ctx context.Context, client *openai.Client, model, issueTitle, issueBody, researchContext, gatheredContext, conventions, commentHistory string) (PlanResult, error) {
+	if client == nil {
+		return PlanResult{}, fmt.Errorf("planner requires an API client (configure planner in config.json and set PLANNER_API_KEY)")
+	}
+
 	userPrompt := fmt.Sprintf("## Issue: %s\n\n%s", issueTitle, issueBody)
 	if commentHistory != "" {
 		userPrompt += fmt.Sprintf("\n\n## Discussion\n\nPrevious comments on this issue (may contain answers to earlier questions):\n\n%s", commentHistory)
@@ -60,19 +62,10 @@ func Plan(ctx context.Context, ol *ollama.Client, issueTitle, issueBody, researc
 		userPrompt += fmt.Sprintf("\n\n## Research Context\n\n%s", researchContext)
 	}
 
-	resp, err := ol.Chat(ctx, ollama.ChatRequest{
-		Model: plannerModel,
-		Messages: []ollama.Message{
-			{Role: "system", Content: plannerSystemPrompt},
-			{Role: "user", Content: userPrompt},
-		},
-		Options: &ollama.Options{Temperature: 0},
-	})
+	content, err := client.Chat(ctx, model, plannerSystemPrompt, userPrompt)
 	if err != nil {
-		return PlanResult{}, fmt.Errorf("planner chat: %w", err)
+		return PlanResult{}, fmt.Errorf("planner: %w", err)
 	}
-
-	content := resp.Message.Content
 	outcome := "plan"
 	if len(content) > 11 && content[:11] == "NEEDS_INFO:" {
 		outcome = "needs_info"

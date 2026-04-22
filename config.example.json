@@ -4,6 +4,10 @@
   "max_iterations": 3,
   "max_cost_budget": 100000,
   "shadow_mode": true,
+  "planner": {
+    "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+    "model": "gemini-2.5-flash"
+  },
   "serena": {
     "command": "serena",
     "args": ["start-mcp-server"]

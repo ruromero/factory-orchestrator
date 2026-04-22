@@ -17,6 +17,7 @@ import (
 	"github.com/ruromero/factory-orchestrator/harness"
 	"github.com/ruromero/factory-orchestrator/mcp"
 	"github.com/ruromero/factory-orchestrator/ollama"
+	"github.com/ruromero/factory-orchestrator/openai"
 	"github.com/ruromero/factory-orchestrator/sandbox"
 )
 
@@ -42,6 +43,11 @@ func main() {
 		gem = gemini.NewClient(cfg.GeminiAPIKey)
 	}
 
+	var planner *openai.Client
+	if cfg.Planner.BaseURL != "" && cfg.Planner.APIKey != "" {
+		planner = openai.NewClient(cfg.Planner.BaseURL, cfg.Planner.APIKey)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -64,7 +70,7 @@ func main() {
 	for {
 		select {
 		case <-ticker.C:
-			pollAllRepos(ctx, ol, gem, cfg)
+			pollAllRepos(ctx, ol, gem, planner, cfg)
 		case <-sigCh:
 			slog.Info("shutting down")
 			cancel()
@@ -75,7 +81,7 @@ func main() {
 	}
 }
 
-func pollAllRepos(ctx context.Context, ol *ollama.Client, gem *gemini.Client, cfg Config) {
+func pollAllRepos(ctx context.Context, ol *ollama.Client, gem *gemini.Client, planner *openai.Client, cfg Config) {
 	for _, repo := range cfg.Repos {
 		gh, err := newGitHubClient(repo)
 		if err != nil {
@@ -112,7 +118,7 @@ func pollAllRepos(ctx context.Context, ol *ollama.Client, gem *gemini.Client, cf
 				log.Error("failed to remove label", "issue", issue.Number, "error", err)
 			}
 
-			if err := processIssue(ctx, gh, ol, gem, cfg, issue); err != nil {
+			if err := processIssue(ctx, gh, ol, gem, planner, cfg, issue); err != nil {
 				log.Error("failed to process issue", "issue", issue.Number, "error", err)
 				gh.AddLabel(ctx, issue.Number, "factory:needs-human")
 			}
@@ -131,7 +137,7 @@ func newGitHubClient(repo RepoConfig) (*github.Client, error) {
 	return github.NewClient(repo.Token, repo.Owner, repo.Repo), nil
 }
 
-func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, gem *gemini.Client, cfg Config, issue github.Issue) error {
+func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, gem *gemini.Client, planner *openai.Client, cfg Config, issue github.Issue) error {
 	log := slog.With("issue", issue.Number)
 
 	rc := harness.LoadRepoContext(ctx, gh)
@@ -161,7 +167,7 @@ func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, gem
 	}
 
 	log.Info("starting plan phase")
-	plan, err := agents.Plan(ctx, ol, issueTitle, issueBody, researchCtx, gatheredCtx, rc.Conventions(), commentHistory)
+	plan, err := agents.Plan(ctx, planner, cfg.Planner.Model, issueTitle, issueBody, researchCtx, gatheredCtx, rc.Conventions(), commentHistory)
 	if err != nil {
 		return fmt.Errorf("plan phase: %w", err)
 	}
