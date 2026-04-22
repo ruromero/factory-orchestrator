@@ -129,4 +129,4 @@ factory:ready → factory:in-progress → factory:done
 
 ## Current status
 
-Phases 0-2 (gather, research, plan) are wired end-to-end. Serena MCP is integrated into the gatherer for LSP-powered code navigation. Phases 3-6 (design, code, review, iterate) have agent implementations but are not yet called from the main orchestration loop.
+All phases (0-6) are wired end-to-end. Serena MCP is shared across phases: read-only tools for gatherer/reviewer, read+write tools for coder/iterator. After the review-iterate loop converges, the orchestrator creates a branch, commits files via GitHub Git Data API, and opens a PR. Shadow mode posts code as an issue comment instead.
