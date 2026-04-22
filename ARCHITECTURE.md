@@ -32,12 +32,15 @@ ollama/        Ollama inference API
 gemini/        Gemini API (research phase only)
   client.go    Single Generate method, generativelanguage.googleapis.com
 
+openai/        OpenAI-compatible API client (planner phase)
+  client.go    Chat method, configurable base URL for any OpenAI-compatible provider
+
 mcp/           Model Context Protocol client
   client.go    JSON-RPC over stdio, implements ollama.ToolHandler
 
 agents/        One file per pipeline phase, each with a system prompt + model assignment
   researcher.go   Gemini 2.5 Flash — gathers external context
-  planner.go      deepseek-r1:14b — produces plan, requests info, or decomposes
+  planner.go      configurable via OpenAI-compatible API — produces plan, requests info, or decomposes
   designer.go     qwen3:14b — API contracts, data models
   coder.go        qwen3:14b — implementation with MCP tools
   reviewer.go     qwen3:14b — three reviews: correctness, security, intent
@@ -65,7 +68,7 @@ GitHub Issue (factory:ready)
   │
   ├─ Phase 0: Gather (qwen3 + doc tools + Serena LSP) → targeted context
   ├─ Phase 1: Research (Gemini) → external context
-  ├─ Phase 2: Plan (deepseek-r1) → plan | needs_info | decompose
+  ├─ Phase 2: Plan (configurable, OpenAI-compatible API) → plan | needs_info | decompose
   ├─ Phase 3: Design (qwen3) → API contracts, file structure
   ├─ Phase 4: Code (qwen3 + MCP) → implementation
   ├─ Phase 5: Review (qwen3) → correctness + security + intent

@@ -5,7 +5,7 @@ Autonomous software development orchestrator. Polls GitHub issues tagged `factor
 ## Pipeline
 
 1. **Research** — Gemini API for external context gathering
-2. **Plan** — deepseek-r1:14b decomposes the issue into an implementation plan
+2. **Plan** — configurable model via any OpenAI-compatible API (Gemini, DeepSeek, MiniMax, etc.) decomposes the issue into an implementation plan
 3. **Design** — qwen3:14b produces API contracts, data models, file structure *(not yet wired)*
 4. **Code** — qwen3:14b + Serena MCP (LSP tools) writes the implementation *(not yet wired)*
 5. **Review** — qwen3:14b (correctness + security + intent) + Qodo (GitHub AI reviewer) *(not yet wired)*
@@ -16,7 +16,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed data flow and package layout
 ## Requirements
 
 - k3s cluster with [Ollama](https://ollama.com) deployed (GPU access)
-- Models pulled: `deepseek-r1:14b`, `qwen3:14b`
+- Models pulled: `qwen3:14b`
 - GitHub App installed on target repos (recommended), or a GitHub PAT
 - Gemini API key (free tier)
 
@@ -66,6 +66,7 @@ If `app_id` is not set, the orchestrator falls back to a static token:
 The orchestrator supports multiple repos in a single instance. Credentials are loaded from env vars, not the config file:
 
 - `GEMINI_API_KEY` — Gemini API key
+- `PLANNER_API_KEY` — API key for the planner's OpenAI-compatible endpoint
 - `GITHUB_APP_PRIVATE_KEY_PATH` — path to the GitHub App `.pem` file (applies to all repos without an explicit `private_key_path`)
 
 ```json
@@ -74,6 +75,10 @@ The orchestrator supports multiple repos in a single instance. Credentials are l
   "poll_interval": "30s",
   "max_iterations": 3,
   "shadow_mode": true,
+  "planner": {
+    "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+    "model": "gemini-2.5-flash"
+  },
   "repos": [
     {"owner": "ruromero", "repo": "factory-orchestrator", "app_id": 123456, "installation_id": 789012},
     {"owner": "ruromero", "repo": "bunko.sh", "app_id": 123456, "installation_id": 789013}
@@ -111,10 +116,11 @@ The planner receives `README.md`, `ARCHITECTURE.md`, and `CONVENTIONS.md` as con
 In Kubernetes, credentials are injected via Secrets — never baked into images or ConfigMaps:
 
 ```yaml
-# Secret with the PEM and Gemini key
+# Secret with the PEM, Gemini key, and planner key
 kubectl create secret generic factory-creds \
   --from-file=github-app.pem=/path/to/key.pem \
-  --from-literal=GEMINI_API_KEY=your-key
+  --from-literal=GEMINI_API_KEY=your-key \
+  --from-literal=PLANNER_API_KEY=your-planner-key
 
 # Mount PEM as a volume, Gemini key as env var
 # See Dockerfile for the scratch-based image
