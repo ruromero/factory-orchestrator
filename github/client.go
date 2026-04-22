@@ -47,6 +47,16 @@ type Comment struct {
 	} `json:"user"`
 }
 
+type FileChange struct {
+	Path    string
+	Content string
+}
+
+type PullRequest struct {
+	Number  int    `json:"number"`
+	HTMLURL string `json:"html_url"`
+}
+
 func NewClient(token, owner, repo string) *Client {
 	return &Client{
 		ts:    staticToken(token),
@@ -229,6 +239,108 @@ func (c *Client) FileExists(ctx context.Context, path string) (bool, error) {
 	return false, fmt.Errorf("check file %s: status %d", path, resp.StatusCode)
 }
 
+func (c *Client) GetBranchSHA(ctx context.Context, branch string) (string, error) {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/git/ref/heads/%s", c.owner, c.repo, branch)
+	var ref struct {
+		Object struct {
+			SHA string `json:"sha"`
+		} `json:"object"`
+	}
+	if err := c.get(ctx, url, &ref); err != nil {
+		return "", fmt.Errorf("get branch SHA: %w", err)
+	}
+	return ref.Object.SHA, nil
+}
+
+func (c *Client) CreateBranch(ctx context.Context, branchName, sha string) error {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/git/refs", c.owner, c.repo)
+	payload := map[string]string{
+		"ref": "refs/heads/" + branchName,
+		"sha": sha,
+	}
+	return c.post(ctx, url, payload, nil)
+}
+
+func (c *Client) CreateCommit(ctx context.Context, branch, message string, files []FileChange) (string, error) {
+	refURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/git/ref/heads/%s", c.owner, c.repo, branch)
+	var ref struct {
+		Object struct {
+			SHA string `json:"sha"`
+		} `json:"object"`
+	}
+	if err := c.get(ctx, refURL, &ref); err != nil {
+		return "", fmt.Errorf("get branch ref: %w", err)
+	}
+	commitSHA := ref.Object.SHA
+
+	commitURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/git/commits/%s", c.owner, c.repo, commitSHA)
+	var commitObj struct {
+		Tree struct {
+			SHA string `json:"sha"`
+		} `json:"tree"`
+	}
+	if err := c.get(ctx, commitURL, &commitObj); err != nil {
+		return "", fmt.Errorf("get commit tree: %w", err)
+	}
+
+	type treeEntry struct {
+		Path    string `json:"path"`
+		Mode    string `json:"mode"`
+		Type    string `json:"type"`
+		Content string `json:"content"`
+	}
+	entries := make([]treeEntry, len(files))
+	for i, f := range files {
+		entries[i] = treeEntry{Path: f.Path, Mode: "100644", Type: "blob", Content: f.Content}
+	}
+
+	treeURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/git/trees", c.owner, c.repo)
+	treePayload := map[string]any{
+		"base_tree": commitObj.Tree.SHA,
+		"tree":      entries,
+	}
+	var newTree struct {
+		SHA string `json:"sha"`
+	}
+	if err := c.post(ctx, treeURL, treePayload, &newTree); err != nil {
+		return "", fmt.Errorf("create tree: %w", err)
+	}
+
+	newCommitURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/git/commits", c.owner, c.repo)
+	newCommitPayload := map[string]any{
+		"message": message,
+		"tree":    newTree.SHA,
+		"parents": []string{commitSHA},
+	}
+	var newCommit struct {
+		SHA string `json:"sha"`
+	}
+	if err := c.post(ctx, newCommitURL, newCommitPayload, &newCommit); err != nil {
+		return "", fmt.Errorf("create commit: %w", err)
+	}
+
+	if err := c.patch(ctx, refURL, map[string]string{"sha": newCommit.SHA}, nil); err != nil {
+		return "", fmt.Errorf("update branch ref: %w", err)
+	}
+
+	return newCommit.SHA, nil
+}
+
+func (c *Client) CreatePullRequest(ctx context.Context, title, body, head, base string) (PullRequest, error) {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls", c.owner, c.repo)
+	payload := map[string]string{
+		"title": title,
+		"body":  body,
+		"head":  head,
+		"base":  base,
+	}
+	var pr PullRequest
+	if err := c.post(ctx, url, payload, &pr); err != nil {
+		return PullRequest{}, fmt.Errorf("create PR: %w", err)
+	}
+	return pr, nil
+}
+
 func (c *Client) get(ctx context.Context, url string, result any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -255,6 +367,18 @@ func (c *Client) delete(ctx context.Context, url string) error {
 		return err
 	}
 	return c.do(ctx, req, nil)
+}
+
+func (c *Client) patch(ctx context.Context, url string, body any, result any) error {
+	data, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, req, result)
 }
 
 func (c *Client) setAuth(ctx context.Context, req *http.Request) error {
