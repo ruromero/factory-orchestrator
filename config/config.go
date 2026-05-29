@@ -1,11 +1,10 @@
-package main
+package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"time"
-
-	"encoding/json"
 )
 
 type Config struct {
@@ -69,7 +68,7 @@ func (d Duration) MarshalJSON() ([]byte, error) {
 	return json.Marshal(d.String())
 }
 
-func loadConfig(path string) (Config, error) {
+func LoadConfig(path string) (Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return Config{}, fmt.Errorf("read config: %w", err)

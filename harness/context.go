@@ -9,17 +9,6 @@ import (
 	"github.com/ruromero/factory-orchestrator/github"
 )
 
-type PhaseContext struct {
-	IssueTitle      string
-	IssueBody       string
-	ResearchContext string
-	GatheredContext string
-	Plan            string
-	Design          string
-	Code            string
-	ReviewFeedback  string
-}
-
 type RepoContext struct {
 	docs     map[string]string
 	sections map[string][]Section
