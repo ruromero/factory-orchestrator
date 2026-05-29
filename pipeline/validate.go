@@ -6,6 +6,10 @@ import (
 	"strings"
 )
 
+// ValidateFiles checks file paths for traversal attacks and blocked patterns.
+// NOTE: filepath.Match does not match across '/' separators, so multi-level
+// patterns like ".github/workflows/*.yml" only work for single-directory depth.
+// For v1 this is sufficient since blocked patterns are simple top-level globs.
 func ValidateFiles(files []FileState, blockedPatterns []string) error {
 	for _, f := range files {
 		if f.Path == "" {
