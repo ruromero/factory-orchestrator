@@ -12,12 +12,14 @@ import (
 	"time"
 
 	"github.com/ruromero/factory-orchestrator/agents"
+	"github.com/ruromero/factory-orchestrator/config"
 	"github.com/ruromero/factory-orchestrator/gemini"
 	"github.com/ruromero/factory-orchestrator/github"
 	"github.com/ruromero/factory-orchestrator/harness"
 	"github.com/ruromero/factory-orchestrator/mcp"
 	"github.com/ruromero/factory-orchestrator/ollama"
 	"github.com/ruromero/factory-orchestrator/openai"
+	"github.com/ruromero/factory-orchestrator/pipeline"
 	"github.com/ruromero/factory-orchestrator/sandbox"
 )
 
@@ -25,7 +27,7 @@ func main() {
 	configPath := flag.String("config", "config.json", "path to config file")
 	flag.Parse()
 
-	cfg, err := loadConfig(*configPath)
+	cfg, err := config.LoadConfig(*configPath)
 	if err != nil {
 		slog.Error("failed to load config", "error", err)
 		os.Exit(1)
@@ -81,7 +83,7 @@ func main() {
 	}
 }
 
-func pollAllRepos(ctx context.Context, ol *ollama.Client, gem *gemini.Client, planner *openai.Client, cfg Config) {
+func pollAllRepos(ctx context.Context, ol *ollama.Client, gem *gemini.Client, planner *openai.Client, cfg config.Config) {
 	for _, repo := range cfg.Repos {
 		gh, err := newGitHubClient(repo)
 		if err != nil {
@@ -126,7 +128,7 @@ func pollAllRepos(ctx context.Context, ol *ollama.Client, gem *gemini.Client, pl
 	}
 }
 
-func newGitHubClient(repo RepoConfig) (*github.Client, error) {
+func newGitHubClient(repo config.RepoConfig) (*github.Client, error) {
 	if repo.UsesAppAuth() {
 		auth, err := github.NewAppAuth(repo.AppID, repo.PrivateKeyPath, repo.InstallationID)
 		if err != nil {
@@ -143,7 +145,7 @@ type serenaSession struct {
 	cleanup  func()
 }
 
-func startSerena(ctx context.Context, gh *github.Client, cfg Config, log *slog.Logger) *serenaSession {
+func startSerena(ctx context.Context, gh *github.Client, cfg config.Config, log *slog.Logger) *serenaSession {
 	if !cfg.Serena.Enabled() {
 		return nil
 	}
@@ -185,7 +187,7 @@ func startSerena(ctx context.Context, gh *github.Client, cfg Config, log *slog.L
 	}
 }
 
-func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, gem *gemini.Client, planner *openai.Client, cfg Config, issue github.Issue) error {
+func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, gem *gemini.Client, planner *openai.Client, cfg config.Config, issue github.Issue) error {
 	log := slog.With("issue", issue.Number)
 
 	rc := harness.LoadRepoContext(ctx, gh)
@@ -200,7 +202,11 @@ func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, gem
 		defer sess.cleanup()
 	}
 
-	gatherTools, gatherHandler := buildGatherTools(rc, gh, sess)
+	var serenaClient *mcp.Client
+	if sess != nil {
+		serenaClient = sess.serena
+	}
+	gatherTools, gatherHandler := harness.BuildGatherTools(rc, gh, serenaClient)
 
 	log.Info("starting context gathering phase")
 	gatheredCtx, err := agents.GatherContext(ctx, ol, issueTitle, issueBody, rc.Summaries(), gatherTools, gatherHandler)
@@ -261,7 +267,7 @@ func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, gem
 		}
 
 		log.Info("starting code phase")
-		coderTools, coderHandler := buildCoderTools(sess)
+		coderTools, coderHandler := harness.BuildCoderTools(serenaClient)
 		code, err := agents.Code(ctx, ol, design, researchCtx, rc.Conventions(), coderTools, coderHandler)
 		if err != nil {
 			return fmt.Errorf("code phase: %w", err)
@@ -273,9 +279,9 @@ func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, gem
 			return fmt.Errorf("review phase: %w", err)
 		}
 
-		for i := 0; i < cfg.MaxIterations && reviewNeedsIteration(review); i++ {
+		for i := 0; i < cfg.MaxIterations && pipeline.ReviewNeedsIteration(review.Correctness, review.Security, review.Intent); i++ {
 			log.Info("starting iteration", "iteration", i+1, "max", cfg.MaxIterations)
-			feedback := formatReviewFeedback(review)
+			feedback := pipeline.FormatReviewFeedback(review.Correctness, review.Security, review.Intent)
 			code, err = agents.Iterate(ctx, ol, code, feedback, coderTools, coderHandler)
 			if err != nil {
 				return fmt.Errorf("iterate phase %d: %w", i+1, err)
@@ -286,9 +292,14 @@ func processIssue(ctx context.Context, gh *github.Client, ol *ollama.Client, gem
 			}
 		}
 
-		files := parseCodeOutput(code)
-		if len(files) == 0 {
+		parsed := pipeline.ParseCodeOutput(code)
+		if len(parsed) == 0 {
 			return fmt.Errorf("no file changes parsed from code output")
+		}
+
+		files := make([]github.FileChange, len(parsed))
+		for i, f := range parsed {
+			files[i] = github.FileChange{Path: f.Path, Content: f.Content}
 		}
 
 		if cfg.ShadowMode {
@@ -350,101 +361,6 @@ func loadHumanComments(ctx context.Context, gh *github.Client, issueNumber int) 
 		fmt.Fprintf(&b, "**@%s**:\n%s\n\n", c.User.Login, body)
 	}
 	return strings.TrimSpace(b.String())
-}
-
-func buildGatherTools(rc *harness.RepoContext, gh *github.Client, sess *serenaSession) ([]ollama.Tool, ollama.ToolHandler) {
-	contextHandler := harness.NewContextToolHandler(rc, gh)
-	contextTools := harness.ContextTools()
-
-	if sess == nil {
-		return contextTools, contextHandler
-	}
-
-	serenaReadTools := harness.FilterTools(sess.serena.Tools(), serenaGatherAllowed)
-
-	composite := harness.NewCompositeToolHandler()
-	composite.Register(contextTools, contextHandler)
-	composite.Register(serenaReadTools, sess.serena)
-
-	allTools := append(contextTools, serenaReadTools...)
-	return allTools, composite
-}
-
-func buildCoderTools(sess *serenaSession) ([]ollama.Tool, ollama.ToolHandler) {
-	if sess == nil {
-		return nil, nil
-	}
-	tools := harness.FilterTools(sess.serena.Tools(), serenaCoderAllowed)
-	return tools, sess.serena
-}
-
-var serenaGatherAllowed = map[string]bool{
-	"find_symbol":                    true,
-	"find_referencing_symbols":       true,
-	"find_referencing_code_snippets": true,
-	"get_symbols_overview":           true,
-	"read_file":                      true,
-	"list_dir":                       true,
-	"search_for_pattern":             true,
-}
-
-var serenaCoderAllowed = map[string]bool{
-	"find_symbol":                    true,
-	"find_referencing_symbols":       true,
-	"find_referencing_code_snippets": true,
-	"get_symbols_overview":           true,
-	"read_file":                      true,
-	"list_dir":                       true,
-	"search_for_pattern":             true,
-	"replace_symbol_body":            true,
-	"insert_before_symbol":           true,
-	"insert_after_symbol":            true,
-	"replace_content":                true,
-}
-
-func parseCodeOutput(output string) []github.FileChange {
-	var files []github.FileChange
-	lines := strings.Split(output, "\n")
-	var currentPath string
-	var content strings.Builder
-	inBlock := false
-
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "FILE:") {
-			currentPath = strings.TrimSpace(strings.TrimPrefix(trimmed, "FILE:"))
-			continue
-		}
-		if !inBlock && strings.HasPrefix(trimmed, "```") && currentPath != "" {
-			inBlock = true
-			content.Reset()
-			continue
-		}
-		if inBlock && trimmed == "```" {
-			files = append(files, github.FileChange{
-				Path:    currentPath,
-				Content: strings.TrimRight(content.String(), "\n"),
-			})
-			currentPath = ""
-			inBlock = false
-			continue
-		}
-		if inBlock {
-			content.WriteString(line)
-			content.WriteString("\n")
-		}
-	}
-	return files
-}
-
-func reviewNeedsIteration(review agents.ReviewResult) bool {
-	combined := review.Correctness + review.Security + review.Intent
-	return strings.Contains(combined, "[CRITICAL]") || strings.Contains(combined, "[MEDIUM]")
-}
-
-func formatReviewFeedback(review agents.ReviewResult) string {
-	return fmt.Sprintf("## Correctness Review\n\n%s\n\n## Security Review\n\n%s\n\n## Intent Review\n\n%s",
-		review.Correctness, review.Security, review.Intent)
 }
 
 const readinessCommentMarker = "<!-- factory:readiness -->"
