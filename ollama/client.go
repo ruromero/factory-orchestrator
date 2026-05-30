@@ -55,7 +55,10 @@ type Options struct {
 }
 
 type ChatResponse struct {
-	Message Message `json:"message"`
+	Message         Message `json:"message"`
+	PromptEvalCount int     `json:"prompt_eval_count"`
+	EvalCount       int     `json:"eval_count"`
+	ToolCallCount   int     `json:"-"`
 }
 
 func NewClient(baseURL string) *Client {
@@ -100,16 +103,29 @@ func (c *Client) Chat(ctx context.Context, req ChatRequest) (ChatResponse, error
 // model responds with tool calls, executes them via the provided handler,
 // appends results, and calls again until the model produces final content.
 func (c *Client) ChatWithTools(ctx context.Context, req ChatRequest, handler ToolHandler, maxCalls int) (ChatResponse, error) {
+	var totalPromptEval, totalEval, totalToolCalls int
+	var lastResp ChatResponse
 	for range maxCalls {
 		resp, err := c.Chat(ctx, req)
 		if err != nil {
-			return ChatResponse{}, err
+			lastResp.PromptEvalCount = totalPromptEval
+			lastResp.EvalCount = totalEval
+			lastResp.ToolCallCount = totalToolCalls
+			return lastResp, err
 		}
 
+		totalPromptEval += resp.PromptEvalCount
+		totalEval += resp.EvalCount
+		lastResp = resp
+
 		if len(resp.Message.ToolCalls) == 0 {
+			resp.PromptEvalCount = totalPromptEval
+			resp.EvalCount = totalEval
+			resp.ToolCallCount = totalToolCalls
 			return resp, nil
 		}
 
+		totalToolCalls += len(resp.Message.ToolCalls)
 		req.Messages = append(req.Messages, resp.Message)
 
 		for _, tc := range resp.Message.ToolCalls {
@@ -128,7 +144,10 @@ func (c *Client) ChatWithTools(ctx context.Context, req ChatRequest, handler Too
 		}
 	}
 
-	return ChatResponse{}, fmt.Errorf("max tool calls (%d) exceeded", maxCalls)
+	lastResp.PromptEvalCount = totalPromptEval
+	lastResp.EvalCount = totalEval
+	lastResp.ToolCallCount = totalToolCalls
+	return lastResp, fmt.Errorf("max tool calls (%d) exceeded", maxCalls)
 }
 
 // ToolHandler executes tool calls from the model against an external system (e.g., MCP server).

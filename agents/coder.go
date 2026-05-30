@@ -25,7 +25,22 @@ Rules:
 - Follow existing code style and conventions
 - Do not add unnecessary dependencies`
 
+// CodeResult holds the coder output and token usage.
+type CodeResult struct {
+	Content      string
+	PromptTokens int
+	CompTokens   int
+	ToolCalls    int
+	Model        string
+}
+
 func Code(ctx context.Context, ol *ollama.Client, design, researchContext, conventions string, tools []ollama.Tool, handler ollama.ToolHandler) (string, error) {
+	r, err := CodeWithUsage(ctx, ol, design, researchContext, conventions, tools, handler)
+	return r.Content, err
+}
+
+// CodeWithUsage works like Code but also returns token usage.
+func CodeWithUsage(ctx context.Context, ol *ollama.Client, design, researchContext, conventions string, tools []ollama.Tool, handler ollama.ToolHandler) (CodeResult, error) {
 	userPrompt := fmt.Sprintf("## Technical Design\n\n%s", design)
 	if conventions != "" {
 		userPrompt += fmt.Sprintf("\n\n## Project Conventions\n\nFollow these conventions strictly:\n\n%s", conventions)
@@ -44,17 +59,25 @@ func Code(ctx context.Context, ol *ollama.Client, design, researchContext, conve
 		Options: &ollama.Options{Temperature: 0},
 	}
 
+	var resp ollama.ChatResponse
+	var err error
 	if len(tools) > 0 && handler != nil {
-		resp, err := ol.ChatWithTools(ctx, req, handler, 20)
+		resp, err = ol.ChatWithTools(ctx, req, handler, 20)
 		if err != nil {
-			return "", fmt.Errorf("coder chat with tools: %w", err)
+			return CodeResult{}, fmt.Errorf("coder chat with tools: %w", err)
 		}
-		return resp.Message.Content, nil
+	} else {
+		resp, err = ol.Chat(ctx, req)
+		if err != nil {
+			return CodeResult{}, fmt.Errorf("coder chat: %w", err)
+		}
 	}
 
-	resp, err := ol.Chat(ctx, req)
-	if err != nil {
-		return "", fmt.Errorf("coder chat: %w", err)
-	}
-	return resp.Message.Content, nil
+	return CodeResult{
+		Content:      resp.Message.Content,
+		PromptTokens: resp.PromptEvalCount,
+		CompTokens:   resp.EvalCount,
+		ToolCalls:    resp.ToolCallCount,
+		Model:        coderModel,
+	}, nil
 }

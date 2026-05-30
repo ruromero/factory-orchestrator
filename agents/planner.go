@@ -39,8 +39,11 @@ Prefer producing a plan with reasonable assumptions over asking for information.
 Only use NEEDS_INFO for truly missing business context.`
 
 type PlanResult struct {
-	Outcome string
-	Content string
+	Outcome      string
+	Content      string
+	PromptTokens int
+	CompTokens   int
+	Model        string
 }
 
 func Plan(ctx context.Context, client *openai.Client, model, issueTitle, issueBody, researchContext, gatheredContext, conventions, commentHistory string) (PlanResult, error) {
@@ -62,7 +65,7 @@ func Plan(ctx context.Context, client *openai.Client, model, issueTitle, issueBo
 		userPrompt += fmt.Sprintf("\n\n## Research Context\n\n%s", researchContext)
 	}
 
-	content, err := client.Chat(ctx, model, plannerSystemPrompt, userPrompt)
+	content, usage, err := client.ChatWithUsage(ctx, model, plannerSystemPrompt, userPrompt)
 	if err != nil {
 		return PlanResult{}, fmt.Errorf("planner: %w", err)
 	}
@@ -73,5 +76,11 @@ func Plan(ctx context.Context, client *openai.Client, model, issueTitle, issueBo
 		outcome = "decompose"
 	}
 
-	return PlanResult{Outcome: outcome, Content: content}, nil
+	return PlanResult{
+		Outcome:      outcome,
+		Content:      content,
+		PromptTokens: usage.PromptTokens,
+		CompTokens:   usage.CompletionTokens,
+		Model:        model,
+	}, nil
 }
