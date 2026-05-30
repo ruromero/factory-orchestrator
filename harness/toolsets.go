@@ -53,5 +53,7 @@ func BuildCoderTools(serena *mcp.Client) ([]ollama.Tool, ollama.ToolHandler) {
 		return nil, nil
 	}
 	tools := FilterTools(serena.Tools(), SerenaCoderAllowed)
-	return tools, serena
+	composite := NewCompositeToolHandler()
+	composite.Register(tools, serena)
+	return tools, composite
 }
