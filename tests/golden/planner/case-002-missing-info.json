@@ -1,0 +1,17 @@
+{
+  "name": "planner-requests-info-for-ambiguous-issue",
+  "phase": "planner",
+  "inputs": {
+    "issue_title": "Something is broken",
+    "issue_body": "It doesn't work anymore.",
+    "research_context": "",
+    "gathered_context": "",
+    "conventions": ""
+  },
+  "assertions": [
+    {"type": "outcome_equals", "value": "needs_info"},
+    {"type": "output_contains", "value": "needs_info"},
+    {"type": "output_not_contains", "value": "plan"}
+  ],
+  "pass_threshold": "8/10"
+}

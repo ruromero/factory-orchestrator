@@ -1,0 +1,15 @@
+{
+  "name": "reviewer-catches-planted-bug",
+  "phase": "reviewer",
+  "inputs": {
+    "issue_title": "Add nil check to ParseConfig",
+    "diff": "--- a/config/config.go\n+++ b/config/config.go\n@@ -10,6 +10,8 @@\n func ParseConfig(path string) (*Config, error) {\n \tdata, err := os.ReadFile(path)\n-\tif err != nil {\n+\tif err == nil {\n \t\treturn nil, fmt.Errorf(\"reading config: %w\", err)\n \t}\n \tvar cfg Config",
+    "plan": "Add nil check before unmarshalling config to prevent nil pointer."
+  },
+  "assertions": [
+    {"type": "output_not_contains", "value": "approve"},
+    {"type": "severity_present", "value": "CRITICAL"},
+    {"type": "output_contains", "value": "err"}
+  ],
+  "pass_threshold": "8/10"
+}

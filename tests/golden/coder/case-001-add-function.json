@@ -1,0 +1,17 @@
+{
+  "name": "coder-adds-new-function",
+  "phase": "coder",
+  "inputs": {
+    "issue_title": "Add ParseDuration helper to config package",
+    "plan": "Add a ParseDuration function to config/helpers.go that parses duration strings like '30s', '5m', '2h' into time.Duration.",
+    "gathered_context": "config package at config/config.go. No existing duration parsing. Standard library time.ParseDuration exists.",
+    "conventions": "Errors wrap with fmt.Errorf. Functions are exported with doc comments."
+  },
+  "assertions": [
+    {"type": "output_contains", "value": "func"},
+    {"type": "output_contains", "value": "Duration"},
+    {"type": "file_paths_include", "value": "config/helpers.go"},
+    {"type": "file_count_gte", "value": "1"}
+  ],
+  "pass_threshold": "8/10"
+}

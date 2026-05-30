@@ -1,0 +1,17 @@
+{
+  "name": "planner-produces-plan-for-simple-bug",
+  "phase": "planner",
+  "inputs": {
+    "issue_title": "Fix nil pointer in ParseConfig",
+    "issue_body": "ParseConfig crashes with nil pointer when config file is empty. Stack trace shows the error at config.go:42.",
+    "research_context": "",
+    "gathered_context": "ParseConfig function at config/config.go reads file and unmarshals JSON. No nil check on the result.",
+    "conventions": "Errors wrap with fmt.Errorf. Use log/slog for logging."
+  },
+  "assertions": [
+    {"type": "outcome_equals", "value": "plan"},
+    {"type": "output_contains", "value": "config"},
+    {"type": "output_not_contains", "value": "NEEDS_INFO"}
+  ],
+  "pass_threshold": "8/10"
+}

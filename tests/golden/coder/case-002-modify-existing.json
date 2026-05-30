@@ -1,0 +1,17 @@
+{
+  "name": "coder-modifies-existing-code",
+  "phase": "coder",
+  "inputs": {
+    "issue_title": "Add timeout to HTTP client in github package",
+    "plan": "Modify github/client.go to add a configurable timeout to the HTTP client. Default to 30 seconds.",
+    "gathered_context": "github/client.go creates http.Client without timeout. Config struct has no timeout field yet.",
+    "conventions": "Use time.Duration for timeouts. Default constants at top of file."
+  },
+  "assertions": [
+    {"type": "output_contains", "value": "Timeout"},
+    {"type": "output_contains", "value": "client"},
+    {"type": "file_paths_include", "value": "github/client.go"},
+    {"type": "file_count_gte", "value": "1"}
+  ],
+  "pass_threshold": "8/10"
+}

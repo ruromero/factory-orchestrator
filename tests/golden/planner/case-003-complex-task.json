@@ -1,0 +1,18 @@
+{
+  "name": "planner-decomposes-complex-task",
+  "phase": "planner",
+  "inputs": {
+    "issue_title": "Add webhook support for pipeline events",
+    "issue_body": "We need to send webhook notifications when pipeline phases complete. Support configurable endpoints per repo, retry logic, and HMAC signing.",
+    "research_context": "Webhooks typically use POST with JSON payload. HMAC-SHA256 for signing. Retry with exponential backoff.",
+    "gathered_context": "Pipeline phases emit events via traces package. Config struct at config/config.go. No existing webhook code.",
+    "conventions": "Zero external dependencies. net/http for HTTP. crypto/hmac for signing."
+  },
+  "assertions": [
+    {"type": "outcome_equals", "value": "plan"},
+    {"type": "output_contains", "value": "webhook"},
+    {"type": "output_contains", "value": "config"},
+    {"type": "output_not_contains", "value": "NEEDS_INFO"}
+  ],
+  "pass_threshold": "7/10"
+}

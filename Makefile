@@ -1,4 +1,4 @@
-BINARIES := dispatcher gatherer researcher planner designer coder committer
+BINARIES := dispatcher gatherer researcher planner designer coder committer eval
 
 .PHONY: build clean $(BINARIES)
 
