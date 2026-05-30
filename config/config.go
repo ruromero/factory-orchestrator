@@ -110,9 +110,9 @@ func LoadConfig(path string) (Config, error) {
 		}
 	}
 	appKeyEnvs := map[string]string{
-		"dispatcher": "FACTORY_DISPATCHER_KEY_PATH",
-		"worker":     "FACTORY_WORKER_KEY_PATH",
-		"committer":  "FACTORY_COMMITTER_KEY_PATH",
+		"dispatcher": "FABRIQUILLA_DISPATCHER_KEY_PATH",
+		"worker":     "FABRIQUILLA_WORKER_KEY_PATH",
+		"committer":  "FABRIQUILLA_COMMITTER_KEY_PATH",
 	}
 	for role, envVar := range appKeyEnvs {
 		if v := os.Getenv(envVar); v != "" {
