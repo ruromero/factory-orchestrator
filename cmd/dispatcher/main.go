@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -119,19 +118,20 @@ func pollAllRepos(ctx context.Context, cfg config.Config) {
 func processIssue(ctx context.Context, gh *github.Client, cfg config.Config, issue github.Issue) error {
 	log := slog.With("issue", issue.Number)
 
+	store := pipeline.NewFileStateStore(cfg.StateDir)
+	key := pipeline.StateKey(gh.Owner(), gh.Repo(), issue.Number)
+	defer func() {
+		if err := store.Delete(ctx, key); err != nil {
+			log.Warn("failed to clean up state file", "error", err)
+		}
+	}()
+
 	rc := harness.LoadRepoContext(ctx, gh)
 
 	issueTitle := sandbox.SanitizeInput(issue.Title)
 	issueBody := sandbox.SanitizeInput(issue.Body)
 	commentHistory := loadHumanComments(ctx, gh, issue.Number)
 
-	stateDir, err := os.MkdirTemp("", "factory-pipeline-*")
-	if err != nil {
-		return fmt.Errorf("create state dir: %w", err)
-	}
-	defer os.RemoveAll(stateDir)
-
-	statePath := filepath.Join(stateDir, "state.json")
 	state := &pipeline.State{
 		RepoOwner:      gh.Owner(),
 		RepoName:       gh.Repo(),
@@ -154,9 +154,11 @@ func processIssue(ctx context.Context, gh *github.Client, cfg config.Config, iss
 		state.CloneDir = sess.CloneDir
 	}
 
-	if err := pipeline.SaveState(statePath, state); err != nil {
+	if err := store.Save(ctx, key, state); err != nil {
 		return fmt.Errorf("save initial state: %w", err)
 	}
+
+	statePath := store.StatePath(key)
 
 	log.Info("starting gather phase")
 	if err := runPhase(ctx, "gatherer", statePath); err != nil {
@@ -173,7 +175,7 @@ func processIssue(ctx context.Context, gh *github.Client, cfg config.Config, iss
 		return fmt.Errorf("plan phase: %w", err)
 	}
 
-	state, err = pipeline.LoadState(statePath)
+	state, err = store.Load(ctx, key)
 	if err != nil {
 		return fmt.Errorf("reload state after plan: %w", err)
 	}
@@ -225,7 +227,7 @@ func processIssue(ctx context.Context, gh *github.Client, cfg config.Config, iss
 			return fmt.Errorf("commit phase: %w", err)
 		}
 
-		state, err = pipeline.LoadState(statePath)
+		state, err = store.Load(ctx, key)
 		if err != nil {
 			return fmt.Errorf("reload state after commit: %w", err)
 		}

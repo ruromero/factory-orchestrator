@@ -18,6 +18,7 @@ type Config struct {
 	Serena        SerenaConfig         `json:"serena"`
 	Repos         []RepoConfig         `json:"repos"`
 	Apps          map[string]AppConfig `json:"apps,omitempty"`
+	StateDir      string               `json:"state_dir,omitempty"`
 }
 
 type AppConfig struct {
@@ -87,6 +88,7 @@ func LoadConfig(path string) (Config, error) {
 		MaxIterations: 3,
 		MaxCostBudget: 100000,
 		ShadowMode:    true,
+		StateDir:      "/data/pipeline",
 	}
 
 	if err := json.Unmarshal(data, &cfg); err != nil {
@@ -99,6 +101,10 @@ func LoadConfig(path string) (Config, error) {
 
 	if v := os.Getenv("PLANNER_API_KEY"); v != "" {
 		cfg.Planner.APIKey = v
+	}
+
+	if v := os.Getenv("PIPELINE_STATE_DIR"); v != "" {
+		cfg.StateDir = v
 	}
 
 	globalKeyPath := os.Getenv("GITHUB_APP_PRIVATE_KEY_PATH")
