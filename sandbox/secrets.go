@@ -12,10 +12,11 @@ type SensitivePattern struct {
 	Pattern *regexp.Regexp
 }
 
-// RedactionEvent records a single redaction for audit logging.
+// RedactionEvent records redactions of a single pattern for audit logging.
 type RedactionEvent struct {
-	Pattern string
-	Count   int
+	Pattern   string
+	Count     int
+	FirstLine int
 }
 
 // sensitivePatterns is the shared list of secret-detection patterns,
@@ -47,11 +48,27 @@ func GetSensitivePatterns() []SensitivePattern {
 // [REDACTED:<pattern>]. Returns the redacted text and a summary of
 // redaction events (one per pattern, with count) for audit logging.
 func RedactSecrets(text string) (string, []RedactionEvent) {
-	counts := make(map[string]int)
+	type tracker struct {
+		count     int
+		firstLine int
+	}
+	seen := make(map[string]*tracker)
+	var order []string
+
+	record := func(name string, line int) {
+		t, ok := seen[name]
+		if !ok {
+			t = &tracker{firstLine: line}
+			seen[name] = t
+			order = append(order, name)
+		}
+		t.count++
+	}
 
 	// Multi-line pass: redact full PEM private key blocks before line-by-line.
-	text = pemBlock.ReplaceAllStringFunc(text, func(_ string) string {
-		counts["private key"]++
+	text = pemBlock.ReplaceAllStringFunc(text, func(match string) string {
+		line := 1 + strings.Count(text[:strings.Index(text, match)], "\n")
+		record("private key", line)
 		return "[REDACTED:private key]"
 	})
 
@@ -59,20 +76,27 @@ func RedactSecrets(text string) (string, []RedactionEvent) {
 	for i, line := range lines {
 		for _, sp := range sensitivePatterns {
 			if sp.Name == "private key" {
-				continue // handled above in multi-line pass
+				continue
 			}
 			n := len(sp.Pattern.FindAllStringIndex(line, -1))
 			if n > 0 {
 				line = sp.Pattern.ReplaceAllString(line, "[REDACTED:"+sp.Name+"]")
-				counts[sp.Name] += n
+				for range n {
+					record(sp.Name, i+1)
+				}
 			}
 		}
 		lines[i] = line
 	}
 
-	var events []RedactionEvent
-	for pattern, count := range counts {
-		events = append(events, RedactionEvent{Pattern: pattern, Count: count})
+	events := make([]RedactionEvent, 0, len(order))
+	for _, name := range order {
+		t := seen[name]
+		events = append(events, RedactionEvent{
+			Pattern:   name,
+			Count:     t.count,
+			FirstLine: t.firstLine,
+		})
 	}
 	return strings.Join(lines, "\n"), events
 }

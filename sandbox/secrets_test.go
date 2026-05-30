@@ -170,15 +170,15 @@ func TestRedactSecretsMultiLine(t *testing.T) {
 		t.Error("missing GitHub token redaction marker")
 	}
 
-	countMap := make(map[string]int)
+	eventMap := make(map[string]RedactionEvent)
 	for _, e := range events {
-		countMap[e.Pattern] = e.Count
+		eventMap[e.Pattern] = e
 	}
-	if countMap["password assignment"] != 1 {
-		t.Errorf("password count = %d, want 1", countMap["password assignment"])
+	if e := eventMap["password assignment"]; e.Count != 1 || e.FirstLine != 2 {
+		t.Errorf("password: count=%d firstLine=%d, want count=1 firstLine=2", e.Count, e.FirstLine)
 	}
-	if countMap["GitHub token"] != 1 {
-		t.Errorf("GitHub token count = %d, want 1", countMap["GitHub token"])
+	if e := eventMap["GitHub token"]; e.Count != 1 || e.FirstLine != 4 {
+		t.Errorf("GitHub token: count=%d firstLine=%d, want count=1 firstLine=4", e.Count, e.FirstLine)
 	}
 }
 
