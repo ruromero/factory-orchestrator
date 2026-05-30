@@ -8,7 +8,6 @@ import (
 	"github.com/ruromero/la-fabriquilla/agents"
 	helpers "github.com/ruromero/la-fabriquilla/cmd/internal"
 	"github.com/ruromero/la-fabriquilla/gemini"
-	"github.com/ruromero/la-fabriquilla/pipeline"
 	"github.com/ruromero/la-fabriquilla/traces"
 )
 
@@ -35,13 +34,7 @@ func main() {
 		return
 	}
 
-	state.PhaseTokens = append(state.PhaseTokens, pipeline.TokenUsage{
-		Phase:            "researcher",
-		Model:            result.Model,
-		PromptTokens:     result.PromptTokens,
-		CompletionTokens: result.CompTokens,
-		WallTimeSeconds:  elapsed.Seconds(),
-	})
+	state.RecordTokenUsage("researcher", result.Model, result.PromptTokens, result.CompTokens, 0, elapsed.Seconds())
 
 	traces.Log(traces.Trace{
 		IssueNumber:  state.IssueNumber,

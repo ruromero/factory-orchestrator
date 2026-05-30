@@ -9,7 +9,6 @@ import (
 	"github.com/ruromero/la-fabriquilla/agents"
 	helpers "github.com/ruromero/la-fabriquilla/cmd/internal"
 	"github.com/ruromero/la-fabriquilla/openai"
-	"github.com/ruromero/la-fabriquilla/pipeline"
 	"github.com/ruromero/la-fabriquilla/traces"
 )
 
@@ -35,13 +34,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	state.PhaseTokens = append(state.PhaseTokens, pipeline.TokenUsage{
-		Phase:            "planner",
-		Model:            plan.Model,
-		PromptTokens:     plan.PromptTokens,
-		CompletionTokens: plan.CompTokens,
-		WallTimeSeconds:  elapsed.Seconds(),
-	})
+	state.RecordTokenUsage("planner", plan.Model, plan.PromptTokens, plan.CompTokens, 0, elapsed.Seconds())
 
 	traces.Log(traces.Trace{
 		IssueNumber:  state.IssueNumber,

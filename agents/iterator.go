@@ -28,6 +28,7 @@ type IterateResult struct {
 	Content      string
 	PromptTokens int
 	CompTokens   int
+	ToolCalls    int
 	Model        string
 }
 
@@ -68,6 +69,7 @@ func IterateWithUsage(ctx context.Context, ol *ollama.Client, code, reviewFeedba
 		Content:      resp.Message.Content,
 		PromptTokens: resp.PromptEvalCount,
 		CompTokens:   resp.EvalCount,
+		ToolCalls:    resp.ToolCallCount,
 		Model:        coderModel,
 	}, nil
 }

@@ -11,7 +11,6 @@ import (
 	"github.com/ruromero/la-fabriquilla/harness"
 	"github.com/ruromero/la-fabriquilla/mcp"
 	"github.com/ruromero/la-fabriquilla/ollama"
-	"github.com/ruromero/la-fabriquilla/pipeline"
 	"github.com/ruromero/la-fabriquilla/traces"
 )
 
@@ -51,13 +50,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	state.PhaseTokens = append(state.PhaseTokens, pipeline.TokenUsage{
-		Phase:            "gatherer",
-		Model:            result.Model,
-		PromptTokens:     result.PromptTokens,
-		CompletionTokens: result.CompTokens,
-		WallTimeSeconds:  elapsed.Seconds(),
-	})
+	state.RecordTokenUsage("gatherer", result.Model, result.PromptTokens, result.CompTokens, result.ToolCalls, elapsed.Seconds())
 
 	traces.Log(traces.Trace{
 		IssueNumber:  state.IssueNumber,
@@ -65,6 +58,7 @@ func main() {
 		Model:        result.Model,
 		PromptTokens: result.PromptTokens,
 		CompTokens:   result.CompTokens,
+		ToolCalls:    result.ToolCalls,
 		Duration:     elapsed.String(),
 		StartedAt:    start,
 	})

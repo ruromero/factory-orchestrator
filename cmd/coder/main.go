@@ -51,19 +51,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	state.PhaseTokens = append(state.PhaseTokens, pipeline.TokenUsage{
-		Phase:            "coder",
-		Model:            codeResult.Model,
-		PromptTokens:     codeResult.PromptTokens,
-		CompletionTokens: codeResult.CompTokens,
-		WallTimeSeconds:  elapsed.Seconds(),
-	})
+	state.RecordTokenUsage("coder", codeResult.Model, codeResult.PromptTokens, codeResult.CompTokens, codeResult.ToolCalls, elapsed.Seconds())
 	traces.Log(traces.Trace{
 		IssueNumber:  state.IssueNumber,
 		Phase:        "coder",
 		Model:        codeResult.Model,
 		PromptTokens: codeResult.PromptTokens,
 		CompTokens:   codeResult.CompTokens,
+		ToolCalls:    codeResult.ToolCalls,
 		Duration:     elapsed.String(),
 		StartedAt:    start,
 	})
@@ -78,19 +73,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	state.PhaseTokens = append(state.PhaseTokens, pipeline.TokenUsage{
-		Phase:            "reviewer",
-		Model:            review.Model,
-		PromptTokens:     review.PromptTokens,
-		CompletionTokens: review.CompTokens,
-		WallTimeSeconds:  elapsed.Seconds(),
-	})
+	state.RecordTokenUsage("reviewer", review.Model, review.PromptTokens, review.CompTokens, review.ToolCalls, elapsed.Seconds())
 	traces.Log(traces.Trace{
 		IssueNumber:  state.IssueNumber,
 		Phase:        "reviewer",
 		Model:        review.Model,
 		PromptTokens: review.PromptTokens,
 		CompTokens:   review.CompTokens,
+		ToolCalls:    review.ToolCalls,
 		Duration:     elapsed.String(),
 		StartedAt:    start,
 	})
@@ -108,19 +98,14 @@ func main() {
 		}
 		code = iterResult.Content
 
-		state.PhaseTokens = append(state.PhaseTokens, pipeline.TokenUsage{
-			Phase:            "iterator",
-			Model:            iterResult.Model,
-			PromptTokens:     iterResult.PromptTokens,
-			CompletionTokens: iterResult.CompTokens,
-			WallTimeSeconds:  elapsed.Seconds(),
-		})
+		state.RecordTokenUsage("iterator", iterResult.Model, iterResult.PromptTokens, iterResult.CompTokens, iterResult.ToolCalls, elapsed.Seconds())
 		traces.Log(traces.Trace{
 			IssueNumber:  state.IssueNumber,
 			Phase:        "iterator",
 			Model:        iterResult.Model,
 			PromptTokens: iterResult.PromptTokens,
 			CompTokens:   iterResult.CompTokens,
+			ToolCalls:    iterResult.ToolCalls,
 			Duration:     elapsed.String(),
 			StartedAt:    start,
 		})
@@ -133,19 +118,14 @@ func main() {
 			os.Exit(1)
 		}
 
-		state.PhaseTokens = append(state.PhaseTokens, pipeline.TokenUsage{
-			Phase:            "reviewer",
-			Model:            review.Model,
-			PromptTokens:     review.PromptTokens,
-			CompletionTokens: review.CompTokens,
-			WallTimeSeconds:  elapsed.Seconds(),
-		})
+		state.RecordTokenUsage("reviewer", review.Model, review.PromptTokens, review.CompTokens, review.ToolCalls, elapsed.Seconds())
 		traces.Log(traces.Trace{
 			IssueNumber:  state.IssueNumber,
 			Phase:        "reviewer",
 			Model:        review.Model,
 			PromptTokens: review.PromptTokens,
 			CompTokens:   review.CompTokens,
+			ToolCalls:    review.ToolCalls,
 			Duration:     elapsed.String(),
 			StartedAt:    start,
 		})

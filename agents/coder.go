@@ -30,6 +30,7 @@ type CodeResult struct {
 	Content      string
 	PromptTokens int
 	CompTokens   int
+	ToolCalls    int
 	Model        string
 }
 
@@ -76,6 +77,7 @@ func CodeWithUsage(ctx context.Context, ol *ollama.Client, design, researchConte
 		Content:      resp.Message.Content,
 		PromptTokens: resp.PromptEvalCount,
 		CompTokens:   resp.EvalCount,
+		ToolCalls:    resp.ToolCallCount,
 		Model:        coderModel,
 	}, nil
 }

@@ -56,6 +56,7 @@ type GatherResult struct {
 	Content      string
 	PromptTokens int
 	CompTokens   int
+	ToolCalls    int
 	Model        string
 }
 
@@ -85,6 +86,7 @@ func GatherContextWithUsage(ctx context.Context, ol *ollama.Client, issueTitle, 
 		Content:      resp.Message.Content,
 		PromptTokens: resp.PromptEvalCount,
 		CompTokens:   resp.EvalCount,
+		ToolCalls:    resp.ToolCallCount,
 		Model:        gathererModel,
 	}, nil
 }

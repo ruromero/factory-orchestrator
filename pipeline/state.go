@@ -13,7 +13,31 @@ type TokenUsage struct {
 	Model            string  `json:"model"`
 	PromptTokens     int     `json:"prompt_tokens"`
 	CompletionTokens int     `json:"completion_tokens"`
+	TotalTokens      int     `json:"total_tokens"`
+	EstimatedCostUSD float64 `json:"estimated_cost_usd"`
 	WallTimeSeconds  float64 `json:"wall_time_seconds"`
+	ToolCalls        int     `json:"tool_calls,omitempty"`
+}
+
+// ModelCosts maps model identifiers to per-token cost in USD.
+// Ollama models are zero-cost (local inference).
+var ModelCosts = map[string]struct {
+	PromptPerToken     float64
+	CompletionPerToken float64
+}{
+	"gemini-2.5-flash":  {0.00000015, 0.0000006},
+	"gemini-2.0-flash":  {0.00000010, 0.0000004},
+	"deepseek-chat":     {0.00000014, 0.00000028},
+	"deepseek-reasoner": {0.00000055, 0.00000219},
+}
+
+// EstimateCost returns the estimated USD cost for the given model and token counts.
+func EstimateCost(model string, promptTokens, completionTokens int) float64 {
+	rates, ok := ModelCosts[model]
+	if !ok {
+		return 0
+	}
+	return float64(promptTokens)*rates.PromptPerToken + float64(completionTokens)*rates.CompletionPerToken
 }
 
 type State struct {
@@ -30,15 +54,18 @@ type State struct {
 	Summaries      string `json:"summaries"`
 	Conventions    string `json:"conventions"`
 
-	GatheredContext string       `json:"gathered_context,omitempty"`
-	ResearchContext string       `json:"research_context,omitempty"`
-	PlanOutcome     string       `json:"plan_outcome,omitempty"`
-	PlanContent     string       `json:"plan_content,omitempty"`
-	Design          string       `json:"design,omitempty"`
-	Code            string       `json:"code,omitempty"`
-	Review          *ReviewState `json:"review,omitempty"`
-	Files           []FileState  `json:"files,omitempty"`
-	PhaseTokens     []TokenUsage `json:"phase_tokens,omitempty"`
+	GatheredContext   string       `json:"gathered_context,omitempty"`
+	ResearchContext   string       `json:"research_context,omitempty"`
+	PlanOutcome       string       `json:"plan_outcome,omitempty"`
+	PlanContent       string       `json:"plan_content,omitempty"`
+	Design            string       `json:"design,omitempty"`
+	Code              string       `json:"code,omitempty"`
+	Review            *ReviewState `json:"review,omitempty"`
+	Files             []FileState  `json:"files,omitempty"`
+	PhaseTokens       []TokenUsage `json:"phase_tokens,omitempty"`
+	TotalPromptTokens int          `json:"total_prompt_tokens,omitempty"`
+	TotalCompTokens   int          `json:"total_completion_tokens,omitempty"`
+	TotalCostUSD      float64      `json:"total_cost_usd,omitempty"`
 
 	PRNumber int    `json:"pr_number,omitempty"`
 	PRBranch string `json:"pr_branch,omitempty"`
@@ -58,6 +85,25 @@ type ReviewState struct {
 type FileState struct {
 	Path    string `json:"path"`
 	Content string `json:"content"`
+}
+
+// RecordTokenUsage appends a phase token record and updates cumulative totals.
+func (s *State) RecordTokenUsage(phase, model string, promptTokens, completionTokens, toolCalls int, wallTime float64) {
+	total := promptTokens + completionTokens
+	cost := EstimateCost(model, promptTokens, completionTokens)
+	s.PhaseTokens = append(s.PhaseTokens, TokenUsage{
+		Phase:            phase,
+		Model:            model,
+		PromptTokens:     promptTokens,
+		CompletionTokens: completionTokens,
+		TotalTokens:      total,
+		EstimatedCostUSD: cost,
+		WallTimeSeconds:  wallTime,
+		ToolCalls:        toolCalls,
+	})
+	s.TotalPromptTokens += promptTokens
+	s.TotalCompTokens += completionTokens
+	s.TotalCostUSD += cost
 }
 
 func LoadState(path string) (*State, error) {

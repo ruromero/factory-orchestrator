@@ -110,6 +110,10 @@ func TestChatWithToolsAccumulatesTokens(t *testing.T) {
 	if got.EvalCount != 120 {
 		t.Errorf("accumulated EvalCount = %d, want 120", got.EvalCount)
 	}
+	// Tool call count should be accumulated: 1 + 1 = 2
+	if got.ToolCallCount != 2 {
+		t.Errorf("ToolCallCount = %d, want 2", got.ToolCallCount)
+	}
 }
 
 func TestChatWithToolsNoToolCalls(t *testing.T) {
@@ -137,6 +141,49 @@ func TestChatWithToolsNoToolCalls(t *testing.T) {
 	}
 	if got.EvalCount != 25 {
 		t.Errorf("EvalCount = %d, want 25", got.EvalCount)
+	}
+}
+
+func TestChatWithToolsMaxCallsReturnsAccumulatedTokens(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Always return a tool call, never final content
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(ChatResponse{
+			Message: Message{
+				Role: "assistant",
+				ToolCalls: []ToolCall{
+					{Function: ToolFunction{Name: "test_tool", Arguments: map[string]any{"k": "v"}}},
+				},
+			},
+			PromptEvalCount: 100,
+			EvalCount:       50,
+		})
+	}))
+	defer srv.Close()
+
+	c := NewClient(srv.URL)
+
+	got, err := c.ChatWithTools(context.Background(), ChatRequest{
+		Model:    "test-model",
+		Messages: []Message{{Role: "user", Content: "hi"}},
+		Tools: []Tool{
+			{Type: "function", Function: ToolDef{Name: "test_tool", Description: "a test tool"}},
+		},
+	}, &mockToolHandler{result: "ok"}, 3)
+	if err == nil {
+		t.Fatal("expected max tool calls error")
+	}
+
+	// Should accumulate tokens from all 3 calls: 100*3 = 300, 50*3 = 150
+	if got.PromptEvalCount != 300 {
+		t.Errorf("PromptEvalCount = %d, want 300", got.PromptEvalCount)
+	}
+	if got.EvalCount != 150 {
+		t.Errorf("EvalCount = %d, want 150", got.EvalCount)
+	}
+	// Tool calls: 1 per iteration * 3 iterations = 3
+	if got.ToolCallCount != 3 {
+		t.Errorf("ToolCallCount = %d, want 3", got.ToolCallCount)
 	}
 }
 
