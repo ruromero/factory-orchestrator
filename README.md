@@ -23,19 +23,19 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed data flow and package layout
 ## Quick start
 
 ```bash
-# Build
-go build -o orchestrator ./cmd/
+# Build all binaries
+make build
 
 # Configure
 cp config.example.json config.json
-# Edit config.json with your app_id, installation_id per repo
+# Edit config.json with your app credentials
 
 # Credentials via env vars (never in config)
-export GITHUB_APP_PRIVATE_KEY_PATH=/etc/factory/github-app.pem
+export GITHUB_APP_PRIVATE_KEY_PATH=/etc/fabriquilla/github-app.pem
 export GEMINI_API_KEY=your-key
 
-# Run
-./orchestrator -config config.json
+# Run the dispatcher (invokes phase binaries as subprocesses)
+./bin/dispatcher -config config.json
 ```
 
 ## Authentication
@@ -46,9 +46,9 @@ The factory uses three separate GitHub Apps with scoped permissions, aligned to 
 
 | App | Used by | Permissions |
 |---|---|---|
-| **factory-dispatcher** | dispatcher | Issues (Read & write), Contents (Read-only), Metadata (Read-only) |
-| **factory-worker** | gatherer, coder | Contents (Read-only), Metadata (Read-only) |
-| **factory-committer** | committer | Contents (Read & write), Pull requests (Read & write), Issues (Read & write), Metadata (Read-only) |
+| **fabriquilla-dispatcher** | dispatcher | Issues (Read & write), Contents (Read-only), Metadata (Read-only) |
+| **fabriquilla-worker** | gatherer, coder | Contents (Read-only), Metadata (Read-only) |
+| **fabriquilla-committer** | committer | Contents (Read & write), Pull requests (Read & write), Issues (Read & write), Metadata (Read-only) |
 
 Setup for each app:
 
@@ -62,9 +62,9 @@ Setup for each app:
 5. Set private key paths via env vars or config
 
 Env vars for private key paths:
-- `FACTORY_DISPATCHER_KEY_PATH` — dispatcher app private key
-- `FACTORY_WORKER_KEY_PATH` — worker app private key
-- `FACTORY_COMMITTER_KEY_PATH` — committer app private key
+- `FABRIQUILLA_DISPATCHER_KEY_PATH` — dispatcher app private key
+- `FABRIQUILLA_WORKER_KEY_PATH` — worker app private key
+- `FABRIQUILLA_COMMITTER_KEY_PATH` — committer app private key
 - `GITHUB_APP_PRIVATE_KEY_PATH` — fallback for any app without an explicit path
 
 ### Single GitHub App (simpler alternative)
@@ -86,9 +86,9 @@ The orchestrator supports multiple repos in a single instance. Credentials are l
 - `GEMINI_API_KEY` — Gemini API key
 - `PLANNER_API_KEY` — API key for the planner's OpenAI-compatible endpoint
 - `GITHUB_APP_PRIVATE_KEY_PATH` — fallback path to a GitHub App `.pem` file
-- `FACTORY_DISPATCHER_KEY_PATH` — dispatcher app private key path
-- `FACTORY_WORKER_KEY_PATH` — worker app private key path
-- `FACTORY_COMMITTER_KEY_PATH` — committer app private key path
+- `FABRIQUILLA_DISPATCHER_KEY_PATH` — dispatcher app private key path
+- `FABRIQUILLA_WORKER_KEY_PATH` — worker app private key path
+- `FABRIQUILLA_COMMITTER_KEY_PATH` — committer app private key path
 
 ```json
 {
@@ -145,7 +145,7 @@ In Kubernetes, credentials are injected via Secrets — never baked into images 
 
 ```yaml
 # Secret with the PEM, Gemini key, and planner key
-kubectl create secret generic factory-creds \
+kubectl create secret generic fabriquilla-creds \
   --from-file=github-app.pem=/path/to/key.pem \
   --from-literal=GEMINI_API_KEY=your-key \
   --from-literal=PLANNER_API_KEY=your-planner-key
@@ -154,7 +154,7 @@ kubectl create secret generic factory-creds \
 # See Dockerfile for the scratch-based image
 ```
 
-The config file goes in a ConfigMap. Credentials stay in the Secret, mounted at `/etc/factory/`.
+The config file goes in a ConfigMap. Credentials stay in the Secret, mounted at `/etc/fabriquilla/`.
 
 ## Design
 

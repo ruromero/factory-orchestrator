@@ -99,9 +99,9 @@ overhead (webhook URLs, private keys, installation grants per repo).
 
 | GitHub App | Binaries | Permissions | Rationale |
 |---|---|---|---|
-| **factory-dispatcher** | dispatcher | issues:write, contents:read | Read/write issues and labels, read repo files for readiness and context. Cannot create branches or PRs. |
-| **factory-worker** | gatherer, coder, iterator | contents:read | Read repo contents and clone for Serena. Cannot write issues, create branches, or open PRs. |
-| **factory-committer** | committer, feedback | contents:write, pull_requests:write, issues:write | Create branches, commits, PRs, and relabel issues. The only identity that can push code. |
+| **fabriquilla-dispatcher** | dispatcher | issues:write, contents:read | Read/write issues and labels, read repo files for readiness and context. Cannot create branches or PRs. |
+| **fabriquilla-worker** | gatherer, coder, iterator | contents:read | Read repo contents and clone for Serena. Cannot write issues, create branches, or open PRs. |
+| **fabriquilla-committer** | committer, feedback | contents:write, pull_requests:write, issues:write | Create branches, commits, PRs, and relabel issues. The only identity that can push code. |
 
 **researcher**, **planner**, **designer**, **reviewer** need zero GitHub
 credentials. All inputs come from pipeline state. All outputs go to pipeline
@@ -962,12 +962,12 @@ Host machine
 │     Manages sandbox lifecycle, ~512MB RAM
 │     SQLite backend (single-node)
 │
-├── factory-dispatcher (systemd service or k3s Deployment)
+├── fabriquilla-dispatcher (systemd service or k3s Deployment)
 │     Long-running poll loop
 │     Mounts /data/pipeline for state files
 │     Contains all phase binaries in same image
 │
-├── factory-dashboard (systemd service or k3s Deployment)
+├── fabriquilla-dashboard (systemd service or k3s Deployment)
 │     Web UI on port 8080
 │     Reads /data/pipeline and /data/feedback
 │     Single bearer token auth
@@ -1115,7 +1115,7 @@ Host machine
 │
 ├── ... (existing services)
 │
-└── factory-dashboard (systemd service or k3s Deployment)
+└── fabriquilla-dashboard (systemd service or k3s Deployment)
       Port: 8080
       Mounts: /data/pipeline (read), /data/feedback (read), config.json (rw)
       Env: DASHBOARD_TOKEN=<random-token>
@@ -1128,7 +1128,7 @@ Host machine
 - Auth: single bearer token from `DASHBOARD_TOKEN` env var
 - Credentials are write-only — the API never returns stored secrets
 - Config writes go through validation before saving
-- The dashboard uses the factory-dispatcher GitHub App credentials for
+- The dashboard uses the fabriquilla-dispatcher GitHub App credentials for
   read-only GitHub API access (issue/PR status)
 - No direct access to sandboxes or LLM endpoints
 
