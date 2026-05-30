@@ -5,11 +5,11 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/ruromero/factory-orchestrator/agents"
-	helpers "github.com/ruromero/factory-orchestrator/cmd/internal"
-	"github.com/ruromero/factory-orchestrator/harness"
-	"github.com/ruromero/factory-orchestrator/mcp"
-	"github.com/ruromero/factory-orchestrator/ollama"
+	"github.com/ruromero/la-fabriquilla/agents"
+	helpers "github.com/ruromero/la-fabriquilla/cmd/internal"
+	"github.com/ruromero/la-fabriquilla/harness"
+	"github.com/ruromero/la-fabriquilla/mcp"
+	"github.com/ruromero/la-fabriquilla/ollama"
 )
 
 func main() {

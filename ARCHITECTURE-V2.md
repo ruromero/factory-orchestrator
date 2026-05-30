@@ -2,7 +2,7 @@
 
 ## Overview
 
-The factory-orchestrator evolves from a monolithic Go binary into a set of
+The la-fabriquilla evolves from a monolithic Go binary into a set of
 purpose-built binaries, each with scoped credentials and optional sandbox
 isolation. The orchestrator polls GitHub repos for issues tagged
 `factory:ready`, runs them through a phased LLM pipeline, and opens PRs with
@@ -371,7 +371,7 @@ RUN npm install -g typescript-language-server typescript
   "repos": [
     {
       "owner": "ruromero",
-      "repo": "factory-orchestrator",
+      "repo": "la-fabriquilla",
       "language": "go",
       "sandbox_image": "factory-go:latest"
     }

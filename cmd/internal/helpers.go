@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/ruromero/factory-orchestrator/config"
-	"github.com/ruromero/factory-orchestrator/github"
-	"github.com/ruromero/factory-orchestrator/pipeline"
+	"github.com/ruromero/la-fabriquilla/config"
+	"github.com/ruromero/la-fabriquilla/github"
+	"github.com/ruromero/la-fabriquilla/pipeline"
 )
 
 func MustLoadConfigAndState() (config.Config, *pipeline.State) {

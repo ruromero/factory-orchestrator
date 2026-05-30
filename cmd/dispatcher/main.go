@@ -13,12 +13,12 @@ import (
 	"syscall"
 	"time"
 
-	helpers "github.com/ruromero/factory-orchestrator/cmd/internal"
-	"github.com/ruromero/factory-orchestrator/config"
-	"github.com/ruromero/factory-orchestrator/github"
-	"github.com/ruromero/factory-orchestrator/harness"
-	"github.com/ruromero/factory-orchestrator/pipeline"
-	"github.com/ruromero/factory-orchestrator/sandbox"
+	helpers "github.com/ruromero/la-fabriquilla/cmd/internal"
+	"github.com/ruromero/la-fabriquilla/config"
+	"github.com/ruromero/la-fabriquilla/github"
+	"github.com/ruromero/la-fabriquilla/harness"
+	"github.com/ruromero/la-fabriquilla/pipeline"
+	"github.com/ruromero/la-fabriquilla/sandbox"
 )
 
 var configPath string
@@ -286,7 +286,7 @@ func notifyReadinessFailure(ctx context.Context, gh *github.Client, readiness gi
 	for _, f := range readiness.Missing {
 		comment += fmt.Sprintf("- `%s`\n", f)
 	}
-	comment += "\nSee [Repo readiness](https://github.com/ruromero/factory-orchestrator#repo-readiness) for details on required files.\n"
+	comment += "\nSee [Repo readiness](https://github.com/ruromero/la-fabriquilla#repo-readiness) for details on required files.\n"
 	comment += "Once the missing files are added, relabel this issue `factory:ready` to retry."
 
 	for _, issue := range issues {

@@ -1,4 +1,4 @@
-# factory-orchestrator
+# la-fabriquilla
 
 Autonomous software development orchestrator. Polls GitHub issues tagged `factory:ready`, drives them through a phased pipeline using local LLMs (Ollama) and Gemini, and opens PRs with the results.
 
@@ -80,7 +80,7 @@ The orchestrator supports multiple repos in a single instance. Credentials are l
     "model": "gemini-2.5-flash"
   },
   "repos": [
-    {"owner": "ruromero", "repo": "factory-orchestrator", "app_id": 123456, "installation_id": 789012},
+    {"owner": "ruromero", "repo": "la-fabriquilla", "app_id": 123456, "installation_id": 789012},
     {"owner": "ruromero", "repo": "bunko.sh", "app_id": 123456, "installation_id": 789013}
   ]
 }

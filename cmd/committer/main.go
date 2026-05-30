@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"os"
 
-	helpers "github.com/ruromero/factory-orchestrator/cmd/internal"
-	"github.com/ruromero/factory-orchestrator/github"
+	helpers "github.com/ruromero/la-fabriquilla/cmd/internal"
+	"github.com/ruromero/la-fabriquilla/github"
 )
 
 func main() {

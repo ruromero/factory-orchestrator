@@ -9,7 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/ruromero/factory-orchestrator/ollama"
+	"github.com/ruromero/la-fabriquilla/ollama"
 )
 
 // Client communicates with an MCP server over stdio using JSON-RPC 2.0.
@@ -72,7 +72,7 @@ func (c *Client) Start(ctx context.Context) error {
 		"protocolVersion": "2024-11-05",
 		"capabilities":    map[string]any{},
 		"clientInfo": map[string]string{
-			"name":    "factory-orchestrator",
+			"name":    "la-fabriquilla",
 			"version": "0.1.0",
 		},
 	}); err != nil {
