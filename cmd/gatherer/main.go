@@ -16,7 +16,7 @@ func main() {
 	cfg, state := helpers.MustLoadConfigAndState()
 
 	ol := ollama.NewClient(cfg.OllamaURL)
-	gh := helpers.MustGitHubClient(cfg, state)
+	gh := helpers.MustGitHubClientForApp(cfg, "worker", state)
 
 	ctx := context.Background()
 

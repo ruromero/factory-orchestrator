@@ -73,7 +73,7 @@ func main() {
 
 func pollAllRepos(ctx context.Context, cfg config.Config) {
 	for _, repo := range cfg.Repos {
-		gh, err := helpers.NewGitHubClientForRepo(repo)
+		gh, err := helpers.NewGitHubClientForApp(cfg, "dispatcher", repo.Owner, repo.Repo)
 		if err != nil {
 			slog.Error("failed to create github client", "repo", repo.Owner+"/"+repo.Repo, "error", err)
 			continue

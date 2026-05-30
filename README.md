@@ -40,18 +40,36 @@ export GEMINI_API_KEY=your-key
 
 ## Authentication
 
-### GitHub App (recommended)
+### Three GitHub Apps (recommended)
 
-A GitHub App gives the factory its own identity so CODEOWNERS can distinguish bot commits from human commits. Setup:
+The factory uses three separate GitHub Apps with scoped permissions, aligned to trust boundaries:
+
+| App | Used by | Permissions |
+|---|---|---|
+| **factory-dispatcher** | dispatcher | Issues (Read & write), Contents (Read-only), Metadata (Read-only) |
+| **factory-worker** | gatherer, coder | Contents (Read-only), Metadata (Read-only) |
+| **factory-committer** | committer | Contents (Read & write), Pull requests (Read & write), Issues (Read & write), Metadata (Read-only) |
+
+Setup for each app:
 
 1. Create a GitHub App at **Settings > Developer settings > GitHub Apps**
    - Homepage URL: your repo URL
    - Disable Webhook (uncheck "Active")
-   - Permissions: **Contents** (Read & write), **Issues** (Read & write), **Pull requests** (Read & write), **Metadata** (Read-only)
+   - Set only the permissions listed above for each app
 2. Generate a private key and download the `.pem` file
 3. Install the app on target repos — note the **Installation ID** from the URL (`github.com/settings/installations/<id>`)
-4. Set `GITHUB_APP_PRIVATE_KEY_PATH` env var pointing to the `.pem` file
-5. Configure each repo in `config.json` with `app_id` and `installation_id`
+4. Configure the `apps` map in `config.json` (see Configuration below)
+5. Set private key paths via env vars or config
+
+Env vars for private key paths:
+- `FACTORY_DISPATCHER_KEY_PATH` — dispatcher app private key
+- `FACTORY_WORKER_KEY_PATH` — worker app private key
+- `FACTORY_COMMITTER_KEY_PATH` — committer app private key
+- `GITHUB_APP_PRIVATE_KEY_PATH` — fallback for any app without an explicit path
+
+### Single GitHub App (simpler alternative)
+
+If you prefer a simpler setup, you can use a single GitHub App with all permissions. Configure it per-repo in `config.json` with `app_id` and `installation_id`. The factory will use this app for all binaries.
 
 ### PAT (fallback)
 
@@ -67,7 +85,10 @@ The orchestrator supports multiple repos in a single instance. Credentials are l
 
 - `GEMINI_API_KEY` — Gemini API key
 - `PLANNER_API_KEY` — API key for the planner's OpenAI-compatible endpoint
-- `GITHUB_APP_PRIVATE_KEY_PATH` — path to the GitHub App `.pem` file (applies to all repos without an explicit `private_key_path`)
+- `GITHUB_APP_PRIVATE_KEY_PATH` — fallback path to a GitHub App `.pem` file
+- `FACTORY_DISPATCHER_KEY_PATH` — dispatcher app private key path
+- `FACTORY_WORKER_KEY_PATH` — worker app private key path
+- `FACTORY_COMMITTER_KEY_PATH` — committer app private key path
 
 ```json
 {
@@ -79,12 +100,19 @@ The orchestrator supports multiple repos in a single instance. Credentials are l
     "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
     "model": "gemini-2.5-flash"
   },
+  "apps": {
+    "dispatcher": {"app_id": 111111, "installation_id": 222222},
+    "worker": {"app_id": 333333, "installation_id": 444444},
+    "committer": {"app_id": 555555, "installation_id": 666666}
+  },
   "repos": [
-    {"owner": "ruromero", "repo": "factory-orchestrator", "app_id": 123456, "installation_id": 789012},
-    {"owner": "ruromero", "repo": "bunko.sh", "app_id": 123456, "installation_id": 789013}
+    {"owner": "ruromero", "repo": "factory-orchestrator"},
+    {"owner": "ruromero", "repo": "example-repo"}
   ]
 }
 ```
+
+When `apps` is configured, each binary authenticates with its scoped App identity. The `repos` list no longer needs `app_id`/`installation_id` per repo (those are inherited from the app config). Per-repo auth fields are still supported as a fallback for single-app setups.
 
 ## Repo readiness
 

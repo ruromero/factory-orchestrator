@@ -13,7 +13,7 @@ import (
 func main() {
 	cfg, state := helpers.MustLoadConfigAndState()
 
-	gh := helpers.MustGitHubClient(cfg, state)
+	gh := helpers.MustGitHubClientForApp(cfg, "committer", state)
 	ctx := context.Background()
 
 	if len(state.Files) == 0 {
