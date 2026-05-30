@@ -62,6 +62,43 @@ func FindRepoConfig(cfg config.Config, owner, repo string) (config.RepoConfig, b
 	return config.RepoConfig{}, false
 }
 
+func NewGitHubClientForApp(cfg config.Config, appRole, owner, repo string) (*github.Client, error) {
+	if cfg.Apps != nil {
+		if app, ok := cfg.Apps[appRole]; ok && app.AppID != 0 {
+			repoCfg, repoOk := FindRepoConfig(cfg, owner, repo)
+			installID := app.InstallationID
+			if installID == 0 && repoOk {
+				installID = repoCfg.InstallationID
+			}
+			keyPath := app.PrivateKeyPath
+			if keyPath == "" && repoOk {
+				keyPath = repoCfg.PrivateKeyPath
+			}
+			if installID != 0 && keyPath != "" {
+				auth, err := github.NewAppAuth(app.AppID, keyPath, installID)
+				if err != nil {
+					return nil, fmt.Errorf("app auth for %s: %w", appRole, err)
+				}
+				return github.NewClientWithAppAuth(auth, owner, repo), nil
+			}
+		}
+	}
+	repoCfg, ok := FindRepoConfig(cfg, owner, repo)
+	if !ok {
+		return nil, fmt.Errorf("repo %s/%s not found in config and no app %q configured", owner, repo, appRole)
+	}
+	return NewGitHubClientForRepo(repoCfg)
+}
+
+func MustGitHubClientForApp(cfg config.Config, appRole string, state *pipeline.State) *github.Client {
+	gh, err := NewGitHubClientForApp(cfg, appRole, state.RepoOwner, state.RepoName)
+	if err != nil {
+		slog.Error("failed to create github client", "app", appRole, "error", err)
+		os.Exit(1)
+	}
+	return gh
+}
+
 func MustGitHubClient(cfg config.Config, state *pipeline.State) *github.Client {
 	repoCfg, ok := FindRepoConfig(cfg, state.RepoOwner, state.RepoName)
 	if !ok {

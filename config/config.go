@@ -8,15 +8,22 @@ import (
 )
 
 type Config struct {
-	OllamaURL     string        `json:"ollama_url"`
-	GeminiAPIKey  string        `json:"gemini_api_key,omitempty"`
-	Planner       PlannerConfig `json:"planner"`
-	PollInterval  Duration      `json:"poll_interval"`
-	MaxIterations int           `json:"max_iterations"`
-	MaxCostBudget int           `json:"max_cost_budget"`
-	ShadowMode    bool          `json:"shadow_mode"`
-	Serena        SerenaConfig  `json:"serena"`
-	Repos         []RepoConfig  `json:"repos"`
+	OllamaURL     string               `json:"ollama_url"`
+	GeminiAPIKey  string               `json:"gemini_api_key,omitempty"`
+	Planner       PlannerConfig        `json:"planner"`
+	PollInterval  Duration             `json:"poll_interval"`
+	MaxIterations int                  `json:"max_iterations"`
+	MaxCostBudget int                  `json:"max_cost_budget"`
+	ShadowMode    bool                 `json:"shadow_mode"`
+	Serena        SerenaConfig         `json:"serena"`
+	Repos         []RepoConfig         `json:"repos"`
+	Apps          map[string]AppConfig `json:"apps,omitempty"`
+}
+
+type AppConfig struct {
+	AppID          int64  `json:"app_id"`
+	InstallationID int64  `json:"installation_id"`
+	PrivateKeyPath string `json:"private_key_path,omitempty"`
 }
 
 type PlannerConfig struct {
@@ -94,10 +101,34 @@ func LoadConfig(path string) (Config, error) {
 		cfg.Planner.APIKey = v
 	}
 
-	if v := os.Getenv("GITHUB_APP_PRIVATE_KEY_PATH"); v != "" {
+	globalKeyPath := os.Getenv("GITHUB_APP_PRIVATE_KEY_PATH")
+	if globalKeyPath != "" {
 		for i := range cfg.Repos {
 			if cfg.Repos[i].PrivateKeyPath == "" {
-				cfg.Repos[i].PrivateKeyPath = v
+				cfg.Repos[i].PrivateKeyPath = globalKeyPath
+			}
+		}
+	}
+	appKeyEnvs := map[string]string{
+		"dispatcher": "FACTORY_DISPATCHER_KEY_PATH",
+		"worker":     "FACTORY_WORKER_KEY_PATH",
+		"committer":  "FACTORY_COMMITTER_KEY_PATH",
+	}
+	for role, envVar := range appKeyEnvs {
+		if v := os.Getenv(envVar); v != "" {
+			if cfg.Apps == nil {
+				cfg.Apps = make(map[string]AppConfig)
+			}
+			app := cfg.Apps[role]
+			app.PrivateKeyPath = v
+			cfg.Apps[role] = app
+		}
+	}
+	if globalKeyPath != "" {
+		for role, app := range cfg.Apps {
+			if app.PrivateKeyPath == "" {
+				app.PrivateKeyPath = globalKeyPath
+				cfg.Apps[role] = app
 			}
 		}
 	}

@@ -1,6 +1,7 @@
 package github
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/rand"
@@ -11,6 +12,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -69,7 +71,7 @@ func (a *AppAuth) Token(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("generate jwt: %w", err)
 	}
 
-	tok, err := a.exchangeForInstallationToken(ctx, jwt)
+	tok, err := a.exchangeForInstallationToken(ctx, jwt, nil)
 	if err != nil {
 		return "", fmt.Errorf("get installation token: %w", err)
 	}
@@ -106,15 +108,44 @@ func (a *AppAuth) generateJWT() (string, error) {
 	return signingInput + "." + sigB64, nil
 }
 
-func (a *AppAuth) exchangeForInstallationToken(ctx context.Context, jwt string) (installationToken, error) {
+func (a *AppAuth) TokenWithPermissions(ctx context.Context, perms map[string]string) (string, error) {
+	jwt, err := a.generateJWT()
+	if err != nil {
+		return "", fmt.Errorf("generate jwt: %w", err)
+	}
+
+	tok, err := a.exchangeForInstallationToken(ctx, jwt, perms)
+	if err != nil {
+		return "", fmt.Errorf("get scoped installation token: %w", err)
+	}
+
+	return tok.Token, nil
+}
+
+func (a *AppAuth) exchangeForInstallationToken(ctx context.Context, jwt string, perms map[string]string) (installationToken, error) {
 	url := fmt.Sprintf("https://api.github.com/app/installations/%d/access_tokens", a.installationID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+	var body io.Reader
+	if len(perms) > 0 {
+		payload := struct {
+			Permissions map[string]string `json:"permissions"`
+		}{Permissions: perms}
+		data, err := json.Marshal(payload)
+		if err != nil {
+			return installationToken{}, fmt.Errorf("marshal permissions: %w", err)
+		}
+		body = bytes.NewReader(data)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
 	if err != nil {
 		return installationToken{}, err
 	}
 	req.Header.Set("Authorization", "Bearer "+jwt)
 	req.Header.Set("Accept", "application/vnd.github+json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -123,9 +154,9 @@ func (a *AppAuth) exchangeForInstallationToken(ctx context.Context, jwt string) 
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		body := make([]byte, 1024)
-		n, _ := resp.Body.Read(body)
-		return installationToken{}, fmt.Errorf("installation token: %d: %s", resp.StatusCode, strings.TrimSpace(string(body[:n])))
+		respBody := make([]byte, 1024)
+		n, _ := resp.Body.Read(respBody)
+		return installationToken{}, fmt.Errorf("installation token: %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody[:n])))
 	}
 
 	var tok installationToken
