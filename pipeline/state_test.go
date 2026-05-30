@@ -13,7 +13,7 @@ func TestStateRoundTrip(t *testing.T) {
 
 	original := &State{
 		RepoOwner:       "ruromero",
-		RepoName:        "factory-orchestrator",
+		RepoName:        "la-fabriquilla",
 		IssueNumber:     42,
 		Phase:           "plan",
 		Iteration:       1,

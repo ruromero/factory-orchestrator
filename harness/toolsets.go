@@ -1,9 +1,9 @@
 package harness
 
 import (
-	"github.com/ruromero/factory-orchestrator/github"
-	"github.com/ruromero/factory-orchestrator/mcp"
-	"github.com/ruromero/factory-orchestrator/ollama"
+	"github.com/ruromero/la-fabriquilla/github"
+	"github.com/ruromero/la-fabriquilla/mcp"
+	"github.com/ruromero/la-fabriquilla/ollama"
 )
 
 var SerenaGatherAllowed = map[string]bool{

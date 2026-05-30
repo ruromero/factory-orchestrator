@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/ruromero/factory-orchestrator/config"
-	"github.com/ruromero/factory-orchestrator/github"
-	"github.com/ruromero/factory-orchestrator/mcp"
+	"github.com/ruromero/la-fabriquilla/config"
+	"github.com/ruromero/la-fabriquilla/github"
+	"github.com/ruromero/la-fabriquilla/mcp"
 )
 
 type SerenaSession struct {

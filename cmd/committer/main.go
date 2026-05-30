@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"os"
 
-	helpers "github.com/ruromero/factory-orchestrator/cmd/internal"
-	"github.com/ruromero/factory-orchestrator/github"
+	helpers "github.com/ruromero/la-fabriquilla/cmd/internal"
+	"github.com/ruromero/la-fabriquilla/github"
 )
 
 func main() {
@@ -30,8 +30,8 @@ func main() {
 		slog.Info("shadow mode: posting code as comment", "files", len(files))
 		comment := fmt.Sprintf("## Factory: Implementation (Shadow Mode)\n\n%d file(s) generated.\n\n%s", len(files), state.Code)
 		gh.CreateComment(ctx, state.IssueNumber, comment)
-		gh.RemoveLabel(ctx, state.IssueNumber, "factory:in-progress")
-		gh.AddLabel(ctx, state.IssueNumber, "factory:done")
+		gh.RemoveLabel(ctx, state.IssueNumber, "fabriquilla:in-progress")
+		gh.AddLabel(ctx, state.IssueNumber, "fabriquilla:done")
 		state.Phase = "commit-done"
 		helpers.MustSaveState(state)
 		return
@@ -70,8 +70,8 @@ func main() {
 	}
 
 	slog.Info("PR created", "pr", pr.Number, "url", pr.HTMLURL)
-	gh.RemoveLabel(ctx, state.IssueNumber, "factory:in-progress")
-	gh.AddLabel(ctx, state.IssueNumber, "factory:done")
+	gh.RemoveLabel(ctx, state.IssueNumber, "fabriquilla:in-progress")
+	gh.AddLabel(ctx, state.IssueNumber, "fabriquilla:done")
 
 	state.PRNumber = pr.Number
 	state.PRBranch = branchName
