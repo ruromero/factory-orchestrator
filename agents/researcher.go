@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ruromero/factory-orchestrator/gemini"
+	"github.com/ruromero/la-fabriquilla/gemini"
 )
 
 const researchModel = "gemini-2.5-flash"

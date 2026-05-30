@@ -1,6 +1,6 @@
-# factory-orchestrator
+# la-fabriquilla
 
-Autonomous software development orchestrator. Polls GitHub issues tagged `factory:ready`, drives them through a phased pipeline using local LLMs (Ollama) and Gemini, and opens PRs with the results.
+Autonomous software development orchestrator. Polls GitHub issues tagged `fabriquilla:ready`, drives them through a phased pipeline using local LLMs (Ollama) and Gemini, and opens PRs with the results.
 
 ## Pipeline
 
@@ -106,7 +106,7 @@ The orchestrator supports multiple repos in a single instance. Credentials are l
     "committer": {"app_id": 555555, "installation_id": 666666}
   },
   "repos": [
-    {"owner": "ruromero", "repo": "factory-orchestrator"},
+    {"owner": "ruromero", "repo": "la-fabriquilla"},
     {"owner": "ruromero", "repo": "example-repo"}
   ]
 }
@@ -130,14 +130,14 @@ The planner receives `README.md`, `ARCHITECTURE.md`, and `CONVENTIONS.md` as con
 
 | Label | Meaning |
 |-------|---------|
-| `factory:ready` | Issue ready for the factory to pick up |
-| `factory:in-progress` | Factory is working on this issue |
-| `factory:needs-info` | Planner needs more info from human |
-| `factory:needs-human` | Factory stuck, requires human intervention |
-| `factory:done` | PR opened, ready for human merge |
-| `factory:tracking` | Parent issue decomposed into sub-issues |
-| `factory:blocked` | Sub-issue waiting on dependency |
-| `factory:requirements` | Repo missing required files (ARCHITECTURE.md, etc.) |
+| `fabriquilla:ready` | Issue ready for the factory to pick up |
+| `fabriquilla:in-progress` | Factory is working on this issue |
+| `fabriquilla:needs-info` | Planner needs more info from human |
+| `fabriquilla:needs-human` | Factory stuck, requires human intervention |
+| `fabriquilla:done` | PR opened, ready for human merge |
+| `fabriquilla:tracking` | Parent issue decomposed into sub-issues |
+| `fabriquilla:blocked` | Sub-issue waiting on dependency |
+| `fabriquilla:requirements` | Repo missing required files (ARCHITECTURE.md, etc.) |
 
 ## k8s deployment
 

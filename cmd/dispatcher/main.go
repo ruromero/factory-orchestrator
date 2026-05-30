@@ -13,12 +13,12 @@ import (
 	"syscall"
 	"time"
 
-	helpers "github.com/ruromero/factory-orchestrator/cmd/internal"
-	"github.com/ruromero/factory-orchestrator/config"
-	"github.com/ruromero/factory-orchestrator/github"
-	"github.com/ruromero/factory-orchestrator/harness"
-	"github.com/ruromero/factory-orchestrator/pipeline"
-	"github.com/ruromero/factory-orchestrator/sandbox"
+	helpers "github.com/ruromero/la-fabriquilla/cmd/internal"
+	"github.com/ruromero/la-fabriquilla/config"
+	"github.com/ruromero/la-fabriquilla/github"
+	"github.com/ruromero/la-fabriquilla/harness"
+	"github.com/ruromero/la-fabriquilla/pipeline"
+	"github.com/ruromero/la-fabriquilla/sandbox"
 )
 
 var configPath string
@@ -91,7 +91,7 @@ func pollAllRepos(ctx context.Context, cfg config.Config) {
 			continue
 		}
 
-		issues, err := gh.ListIssuesByLabel(ctx, "factory:ready")
+		issues, err := gh.ListIssuesByLabel(ctx, "fabriquilla:ready")
 		if err != nil {
 			log.Error("failed to poll issues", "error", err)
 			continue
@@ -100,17 +100,17 @@ func pollAllRepos(ctx context.Context, cfg config.Config) {
 		for _, issue := range issues {
 			log.Info("processing issue", "number", issue.Number, "title", issue.Title)
 
-			if err := gh.AddLabel(ctx, issue.Number, "factory:in-progress"); err != nil {
+			if err := gh.AddLabel(ctx, issue.Number, "fabriquilla:in-progress"); err != nil {
 				log.Error("failed to add label", "issue", issue.Number, "error", err)
 				continue
 			}
-			if err := gh.RemoveLabel(ctx, issue.Number, "factory:ready"); err != nil {
+			if err := gh.RemoveLabel(ctx, issue.Number, "fabriquilla:ready"); err != nil {
 				log.Error("failed to remove label", "issue", issue.Number, "error", err)
 			}
 
 			if err := processIssue(ctx, gh, cfg, issue); err != nil {
 				log.Error("failed to process issue", "issue", issue.Number, "error", err)
-				gh.AddLabel(ctx, issue.Number, "factory:needs-human")
+				gh.AddLabel(ctx, issue.Number, "fabriquilla:needs-human")
 			}
 		}
 	}
@@ -185,8 +185,8 @@ func processIssue(ctx context.Context, gh *github.Client, cfg config.Config, iss
 		if err := gh.CreateComment(ctx, issue.Number, comment); err != nil {
 			return fmt.Errorf("post needs-info comment: %w", err)
 		}
-		gh.RemoveLabel(ctx, issue.Number, "factory:in-progress")
-		return gh.AddLabel(ctx, issue.Number, "factory:needs-info")
+		gh.RemoveLabel(ctx, issue.Number, "fabriquilla:in-progress")
+		return gh.AddLabel(ctx, issue.Number, "fabriquilla:needs-info")
 
 	case "decompose":
 		log.Info("planner decomposing issue")
@@ -197,8 +197,8 @@ func processIssue(ctx context.Context, gh *github.Client, cfg config.Config, iss
 		if err := createSubIssues(ctx, gh, issue.Number, state.PlanContent); err != nil {
 			return fmt.Errorf("create sub-issues: %w", err)
 		}
-		gh.RemoveLabel(ctx, issue.Number, "factory:in-progress")
-		return gh.AddLabel(ctx, issue.Number, "factory:tracking")
+		gh.RemoveLabel(ctx, issue.Number, "fabriquilla:in-progress")
+		return gh.AddLabel(ctx, issue.Number, "fabriquilla:tracking")
 
 	case "plan":
 		log.Info("plan produced, posting to issue")
@@ -274,10 +274,10 @@ func loadHumanComments(ctx context.Context, gh *github.Client, issueNumber int) 
 	return strings.TrimSpace(b.String())
 }
 
-const readinessCommentMarker = "<!-- factory:readiness -->"
+const readinessCommentMarker = "<!-- fabriquilla:readiness -->"
 
 func notifyReadinessFailure(ctx context.Context, gh *github.Client, readiness github.ReadinessResult) {
-	issues, err := gh.ListIssuesByLabel(ctx, "factory:ready")
+	issues, err := gh.ListIssuesByLabel(ctx, "fabriquilla:ready")
 	if err != nil || len(issues) == 0 {
 		return
 	}
@@ -286,8 +286,8 @@ func notifyReadinessFailure(ctx context.Context, gh *github.Client, readiness gi
 	for _, f := range readiness.Missing {
 		comment += fmt.Sprintf("- `%s`\n", f)
 	}
-	comment += "\nSee [Repo readiness](https://github.com/ruromero/factory-orchestrator#repo-readiness) for details on required files.\n"
-	comment += "Once the missing files are added, relabel this issue `factory:ready` to retry."
+	comment += "\nSee [Repo readiness](https://github.com/ruromero/la-fabriquilla#repo-readiness) for details on required files.\n"
+	comment += "Once the missing files are added, relabel this issue `fabriquilla:ready` to retry."
 
 	for _, issue := range issues {
 		existing, err := gh.ListComments(ctx, issue.Number)
@@ -309,8 +309,8 @@ func notifyReadinessFailure(ctx context.Context, gh *github.Client, readiness gi
 			slog.Error("failed to post readiness comment", "issue", issue.Number, "error", err)
 			continue
 		}
-		gh.RemoveLabel(ctx, issue.Number, "factory:ready")
-		gh.AddLabel(ctx, issue.Number, "factory:requirements")
+		gh.RemoveLabel(ctx, issue.Number, "fabriquilla:ready")
+		gh.AddLabel(ctx, issue.Number, "fabriquilla:requirements")
 		slog.Info("notified issue about missing requirements", "issue", issue.Number, "missing", readiness.Missing)
 	}
 }
@@ -334,7 +334,7 @@ func createSubIssues(ctx context.Context, gh *github.Client, parentNumber int, d
 
 	for _, title := range subIssues {
 		body := fmt.Sprintf("Parent issue: #%d\n\nSub-task: %s", parentNumber, title)
-		created, err := gh.CreateIssue(ctx, title, body, []string{"factory:ready"})
+		created, err := gh.CreateIssue(ctx, title, body, []string{"fabriquilla:ready"})
 		if err != nil {
 			return fmt.Errorf("create sub-issue %q: %w", title, err)
 		}

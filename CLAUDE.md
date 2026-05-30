@@ -20,7 +20,7 @@ iterate) using local LLMs via Ollama and Gemini for research.
 gofmt -l .
 go vet ./...
 go test -race ./...
-CGO_ENABLED=0 go build -o orchestrator ./cmd/
+CGO_ENABLED=0 go build ./...
 ```
 
 ## Constraints
@@ -36,7 +36,10 @@ CGO_ENABLED=0 go build -o orchestrator ./cmd/
 
 ## Structure
 
-- cmd/ — entry point, config loading, poll loop
+- cmd/dispatcher/ — poll loop, phase orchestration
+- cmd/{gatherer,researcher,planner,designer,coder,committer}/ — phase binaries
+- cmd/internal/ — shared helpers (config/state loading, GitHub client)
+- config/ — shared configuration types
 - github/ — GitHub API client (issues, PRs, comments, labels)
 - ollama/ — Ollama API client (chat + tool-calling loop)
 - gemini/ — Gemini API client (research phase)

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The factory-orchestrator is a single Go binary that polls GitHub repos for issues tagged `factory:ready`, runs them through a phased LLM pipeline, and posts results back as issue comments or PRs. It runs in a k3s cluster alongside an Ollama instance with GPU access.
+The la-fabriquilla is a single Go binary that polls GitHub repos for issues tagged `fabriquilla:ready`, runs them through a phased LLM pipeline, and posts results back as issue comments or PRs. It runs in a k3s cluster alongside an Ollama instance with GPU access.
 
 ## Execution layers
 
@@ -60,7 +60,7 @@ traces/        Observability
 ## Data flow
 
 ```
-GitHub Issue (factory:ready)
+GitHub Issue (fabriquilla:ready)
   │
   ├─ SanitizeInput(title, body)
   ├─ LoadRepoContext(README, ARCHITECTURE, CONVENTIONS)
@@ -107,10 +107,10 @@ Credentials never appear in config files, logs, or agent context:
 Issues move through states via GitHub labels:
 
 ```
-factory:ready → factory:in-progress → factory:done
-                                     → factory:needs-info (awaiting human)
-                                     → factory:needs-human (stuck)
-                                     → factory:tracking (decomposed into sub-issues)
+fabriquilla:ready → fabriquilla:in-progress → fabriquilla:done
+                                     → fabriquilla:needs-info (awaiting human)
+                                     → fabriquilla:needs-human (stuck)
+                                     → fabriquilla:tracking (decomposed into sub-issues)
 ```
 
 ## Key interfaces
@@ -124,7 +124,7 @@ factory:ready → factory:in-progress → factory:done
 - **GPU**: NVIDIA RTX 3060 12GB VRAM, shared across all inference
 - **Ollama**: Separate namespace (`ai`), models pre-pulled
 - **Orchestrator**: Own namespace (`factory`), no GPU needed
-- **Registry**: quay.io/ruben/factory-orchestrator
+- **Registry**: quay.io/ruben/la-fabriquilla
 - **CI**: GitHub Actions (gofmt, go vet, go test -race, go build)
 
 ## Current status

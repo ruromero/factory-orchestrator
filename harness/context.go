@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/ruromero/factory-orchestrator/github"
+	"github.com/ruromero/la-fabriquilla/github"
 )
 
 type RepoContext struct {
