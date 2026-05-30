@@ -16,6 +16,8 @@ type StateStore interface {
 
 // FileStateStore is a file-backed implementation of StateStore.
 // State is stored as JSON files at {BaseDir}/{key}.json.
+// Not safe for concurrent writes to the same key — the factory pipeline
+// processes phases sequentially so this is not an issue in practice.
 type FileStateStore struct {
 	BaseDir string
 }
