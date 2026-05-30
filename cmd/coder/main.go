@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"time"
 
 	"github.com/ruromero/la-fabriquilla/agents"
 	helpers "github.com/ruromero/la-fabriquilla/cmd/internal"
@@ -11,6 +12,7 @@ import (
 	"github.com/ruromero/la-fabriquilla/mcp"
 	"github.com/ruromero/la-fabriquilla/ollama"
 	"github.com/ruromero/la-fabriquilla/pipeline"
+	"github.com/ruromero/la-fabriquilla/traces"
 )
 
 func main() {
@@ -41,31 +43,112 @@ func main() {
 	rc := harness.LoadRepoContext(ctx, gh)
 	gatherTools, gatherHandler := harness.BuildGatherTools(rc, gh, serenaClient)
 
-	code, err := agents.Code(ctx, ol, state.Design, state.ResearchContext, state.Conventions, coderTools, coderHandler)
+	start := time.Now()
+	codeResult, err := agents.CodeWithUsage(ctx, ol, state.Design, state.ResearchContext, state.Conventions, coderTools, coderHandler)
+	elapsed := time.Since(start)
 	if err != nil {
 		slog.Error("code phase failed", "error", err)
 		os.Exit(1)
 	}
 
+	state.PhaseTokens = append(state.PhaseTokens, pipeline.TokenUsage{
+		Phase:            "coder",
+		Model:            codeResult.Model,
+		PromptTokens:     codeResult.PromptTokens,
+		CompletionTokens: codeResult.CompTokens,
+		WallTimeSeconds:  elapsed.Seconds(),
+	})
+	traces.Log(traces.Trace{
+		IssueNumber:  state.IssueNumber,
+		Phase:        "coder",
+		Model:        codeResult.Model,
+		PromptTokens: codeResult.PromptTokens,
+		CompTokens:   codeResult.CompTokens,
+		Duration:     elapsed.String(),
+		StartedAt:    start,
+	})
+
+	code := codeResult.Content
+
+	start = time.Now()
 	review, err := agents.Review(ctx, ol, code, state.Design, state.PlanContent, state.Conventions, gatherTools, gatherHandler)
+	elapsed = time.Since(start)
 	if err != nil {
 		slog.Error("review phase failed", "error", err)
 		os.Exit(1)
 	}
 
+	state.PhaseTokens = append(state.PhaseTokens, pipeline.TokenUsage{
+		Phase:            "reviewer",
+		Model:            review.Model,
+		PromptTokens:     review.PromptTokens,
+		CompletionTokens: review.CompTokens,
+		WallTimeSeconds:  elapsed.Seconds(),
+	})
+	traces.Log(traces.Trace{
+		IssueNumber:  state.IssueNumber,
+		Phase:        "reviewer",
+		Model:        review.Model,
+		PromptTokens: review.PromptTokens,
+		CompTokens:   review.CompTokens,
+		Duration:     elapsed.String(),
+		StartedAt:    start,
+	})
+
 	for i := 0; i < cfg.MaxIterations && pipeline.ReviewNeedsIteration(review.Correctness, review.Security, review.Intent); i++ {
 		slog.Info("starting iteration", "iteration", i+1, "max", cfg.MaxIterations)
 		feedback := pipeline.FormatReviewFeedback(review.Correctness, review.Security, review.Intent)
-		code, err = agents.Iterate(ctx, ol, code, feedback, coderTools, coderHandler)
+
+		start = time.Now()
+		iterResult, err := agents.IterateWithUsage(ctx, ol, code, feedback, coderTools, coderHandler)
+		elapsed = time.Since(start)
 		if err != nil {
 			slog.Error("iterate phase failed", "iteration", i+1, "error", err)
 			os.Exit(1)
 		}
+		code = iterResult.Content
+
+		state.PhaseTokens = append(state.PhaseTokens, pipeline.TokenUsage{
+			Phase:            "iterator",
+			Model:            iterResult.Model,
+			PromptTokens:     iterResult.PromptTokens,
+			CompletionTokens: iterResult.CompTokens,
+			WallTimeSeconds:  elapsed.Seconds(),
+		})
+		traces.Log(traces.Trace{
+			IssueNumber:  state.IssueNumber,
+			Phase:        "iterator",
+			Model:        iterResult.Model,
+			PromptTokens: iterResult.PromptTokens,
+			CompTokens:   iterResult.CompTokens,
+			Duration:     elapsed.String(),
+			StartedAt:    start,
+		})
+
+		start = time.Now()
 		review, err = agents.Review(ctx, ol, code, state.Design, state.PlanContent, state.Conventions, gatherTools, gatherHandler)
+		elapsed = time.Since(start)
 		if err != nil {
 			slog.Error("review phase failed", "iteration", i+1, "error", err)
 			os.Exit(1)
 		}
+
+		state.PhaseTokens = append(state.PhaseTokens, pipeline.TokenUsage{
+			Phase:            "reviewer",
+			Model:            review.Model,
+			PromptTokens:     review.PromptTokens,
+			CompletionTokens: review.CompTokens,
+			WallTimeSeconds:  elapsed.Seconds(),
+		})
+		traces.Log(traces.Trace{
+			IssueNumber:  state.IssueNumber,
+			Phase:        "reviewer",
+			Model:        review.Model,
+			PromptTokens: review.PromptTokens,
+			CompTokens:   review.CompTokens,
+			Duration:     elapsed.String(),
+			StartedAt:    start,
+		})
 	}
 
 	parsed := pipeline.ParseCodeOutput(code)

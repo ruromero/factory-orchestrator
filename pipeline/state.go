@@ -8,6 +8,14 @@ import (
 	"time"
 )
 
+type TokenUsage struct {
+	Phase            string  `json:"phase"`
+	Model            string  `json:"model"`
+	PromptTokens     int     `json:"prompt_tokens"`
+	CompletionTokens int     `json:"completion_tokens"`
+	WallTimeSeconds  float64 `json:"wall_time_seconds"`
+}
+
 type State struct {
 	RepoOwner   string `json:"repo_owner"`
 	RepoName    string `json:"repo_name"`
@@ -30,6 +38,7 @@ type State struct {
 	Code            string       `json:"code,omitempty"`
 	Review          *ReviewState `json:"review,omitempty"`
 	Files           []FileState  `json:"files,omitempty"`
+	PhaseTokens     []TokenUsage `json:"phase_tokens,omitempty"`
 
 	PRNumber int    `json:"pr_number,omitempty"`
 	PRBranch string `json:"pr_branch,omitempty"`

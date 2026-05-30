@@ -4,10 +4,13 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"time"
 
 	"github.com/ruromero/la-fabriquilla/agents"
 	helpers "github.com/ruromero/la-fabriquilla/cmd/internal"
 	"github.com/ruromero/la-fabriquilla/openai"
+	"github.com/ruromero/la-fabriquilla/pipeline"
+	"github.com/ruromero/la-fabriquilla/traces"
 )
 
 func main() {
@@ -21,14 +24,34 @@ func main() {
 	client := openai.NewClient(cfg.Planner.BaseURL, cfg.Planner.APIKey)
 	ctx := context.Background()
 
+	start := time.Now()
 	plan, err := agents.Plan(ctx, client, cfg.Planner.Model,
 		state.IssueTitle, state.IssueBody,
 		state.ResearchContext, state.GatheredContext,
 		state.Conventions, state.CommentHistory)
+	elapsed := time.Since(start)
 	if err != nil {
 		slog.Error("plan phase failed", "error", err)
 		os.Exit(1)
 	}
+
+	state.PhaseTokens = append(state.PhaseTokens, pipeline.TokenUsage{
+		Phase:            "planner",
+		Model:            plan.Model,
+		PromptTokens:     plan.PromptTokens,
+		CompletionTokens: plan.CompTokens,
+		WallTimeSeconds:  elapsed.Seconds(),
+	})
+
+	traces.Log(traces.Trace{
+		IssueNumber:  state.IssueNumber,
+		Phase:        "planner",
+		Model:        plan.Model,
+		PromptTokens: plan.PromptTokens,
+		CompTokens:   plan.CompTokens,
+		Duration:     elapsed.String(),
+		StartedAt:    start,
+	})
 
 	state.PlanOutcome = plan.Outcome
 	state.PlanContent = plan.Content

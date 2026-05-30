@@ -23,7 +23,21 @@ FILE: path/to/file
 
 Do not introduce new features. Only fix the issues raised in the review.`
 
+// IterateResult holds the iterate output and token usage.
+type IterateResult struct {
+	Content      string
+	PromptTokens int
+	CompTokens   int
+	Model        string
+}
+
 func Iterate(ctx context.Context, ol *ollama.Client, code, reviewFeedback string, tools []ollama.Tool, handler ollama.ToolHandler) (string, error) {
+	r, err := IterateWithUsage(ctx, ol, code, reviewFeedback, tools, handler)
+	return r.Content, err
+}
+
+// IterateWithUsage works like Iterate but also returns token usage.
+func IterateWithUsage(ctx context.Context, ol *ollama.Client, code, reviewFeedback string, tools []ollama.Tool, handler ollama.ToolHandler) (IterateResult, error) {
 	userPrompt := fmt.Sprintf("## Current Code\n\n%s\n\n## Review Feedback\n\n%s", code, reviewFeedback)
 
 	req := ollama.ChatRequest{
@@ -36,17 +50,24 @@ func Iterate(ctx context.Context, ol *ollama.Client, code, reviewFeedback string
 		Options: &ollama.Options{Temperature: 0},
 	}
 
+	var resp ollama.ChatResponse
+	var err error
 	if len(tools) > 0 && handler != nil {
-		resp, err := ol.ChatWithTools(ctx, req, handler, 20)
+		resp, err = ol.ChatWithTools(ctx, req, handler, 20)
 		if err != nil {
-			return "", fmt.Errorf("iterate with tools: %w", err)
+			return IterateResult{}, fmt.Errorf("iterate with tools: %w", err)
 		}
-		return resp.Message.Content, nil
+	} else {
+		resp, err = ol.Chat(ctx, req)
+		if err != nil {
+			return IterateResult{}, fmt.Errorf("iterate chat: %w", err)
+		}
 	}
 
-	resp, err := ol.Chat(ctx, req)
-	if err != nil {
-		return "", fmt.Errorf("iterate chat: %w", err)
-	}
-	return resp.Message.Content, nil
+	return IterateResult{
+		Content:      resp.Message.Content,
+		PromptTokens: resp.PromptEvalCount,
+		CompTokens:   resp.EvalCount,
+		Model:        coderModel,
+	}, nil
 }

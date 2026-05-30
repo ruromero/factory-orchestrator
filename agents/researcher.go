@@ -27,9 +27,23 @@ Be concise and actionable. Structure your output as a reference document that a 
 
 %s`
 
+// ResearchResult holds the research output and token usage.
+type ResearchResult struct {
+	Content      string
+	PromptTokens int
+	CompTokens   int
+	Model        string
+}
+
 func Research(ctx context.Context, gem *gemini.Client, issueTitle, issueBody, techContext string) (string, error) {
+	r, err := ResearchWithUsage(ctx, gem, issueTitle, issueBody, techContext)
+	return r.Content, err
+}
+
+// ResearchWithUsage works like Research but also returns token usage metadata.
+func ResearchWithUsage(ctx context.Context, gem *gemini.Client, issueTitle, issueBody, techContext string) (ResearchResult, error) {
 	if gem == nil {
-		return "", nil
+		return ResearchResult{}, nil
 	}
 
 	stackSection := ""
@@ -38,9 +52,14 @@ func Research(ctx context.Context, gem *gemini.Client, issueTitle, issueBody, te
 	}
 
 	prompt := fmt.Sprintf(researchPrompt, stackSection, issueTitle, issueBody)
-	result, err := gem.Generate(ctx, researchModel, prompt)
+	result, usage, err := gem.GenerateWithUsage(ctx, researchModel, prompt)
 	if err != nil {
-		return "", fmt.Errorf("research: %w", err)
+		return ResearchResult{}, fmt.Errorf("research: %w", err)
 	}
-	return result, nil
+	return ResearchResult{
+		Content:      result,
+		PromptTokens: usage.PromptTokens,
+		CompTokens:   usage.CompletionTokens,
+		Model:        researchModel,
+	}, nil
 }

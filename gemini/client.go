@@ -10,8 +10,9 @@ import (
 )
 
 type Client struct {
-	apiKey string
-	http   *http.Client
+	apiKey  string
+	baseURL string // override for testing; empty uses production URL
+	http    *http.Client
 }
 
 type generateRequest struct {
@@ -32,6 +33,17 @@ type generateResponse struct {
 			Parts []part `json:"parts"`
 		} `json:"content"`
 	} `json:"candidates"`
+	UsageMetadata struct {
+		PromptTokenCount     int `json:"promptTokenCount"`
+		CandidatesTokenCount int `json:"candidatesTokenCount"`
+		TotalTokenCount      int `json:"totalTokenCount"`
+	} `json:"usageMetadata"`
+}
+
+// Usage holds token counts returned by the Gemini API.
+type Usage struct {
+	PromptTokens     int
+	CompletionTokens int
 }
 
 func NewClient(apiKey string) *Client {
@@ -42,7 +54,21 @@ func NewClient(apiKey string) *Client {
 }
 
 func (c *Client) Generate(ctx context.Context, model, prompt string) (string, error) {
-	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s", model, c.apiKey)
+	text, _, err := c.GenerateWithUsage(ctx, model, prompt)
+	return text, err
+}
+
+func (c *Client) endpoint(model string) string {
+	base := "https://generativelanguage.googleapis.com"
+	if c.baseURL != "" {
+		base = c.baseURL
+	}
+	return fmt.Sprintf("%s/v1beta/models/%s:generateContent?key=%s", base, model, c.apiKey)
+}
+
+// GenerateWithUsage works like Generate but also returns token usage metadata.
+func (c *Client) GenerateWithUsage(ctx context.Context, model, prompt string) (string, Usage, error) {
+	url := c.endpoint(model)
 
 	req := generateRequest{
 		Contents: []content{{Parts: []part{{Text: prompt}}}},
@@ -50,34 +76,39 @@ func (c *Client) Generate(ctx context.Context, model, prompt string) (string, er
 
 	data, err := json.Marshal(req)
 	if err != nil {
-		return "", err
+		return "", Usage{}, err
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
 	if err != nil {
-		return "", err
+		return "", Usage{}, err
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.http.Do(httpReq)
 	if err != nil {
-		return "", err
+		return "", Usage{}, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
 		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("gemini api: %d: %s", resp.StatusCode, body)
+		return "", Usage{}, fmt.Errorf("gemini api: %d: %s", resp.StatusCode, body)
 	}
 
 	var genResp generateResponse
 	if err := json.NewDecoder(resp.Body).Decode(&genResp); err != nil {
-		return "", fmt.Errorf("decode gemini response: %w", err)
+		return "", Usage{}, fmt.Errorf("decode gemini response: %w", err)
 	}
 
 	if len(genResp.Candidates) == 0 || len(genResp.Candidates[0].Content.Parts) == 0 {
-		return "", fmt.Errorf("empty gemini response")
+		return "", Usage{}, fmt.Errorf("empty gemini response")
 	}
 
-	return genResp.Candidates[0].Content.Parts[0].Text, nil
+	usage := Usage{
+		PromptTokens:     genResp.UsageMetadata.PromptTokenCount,
+		CompletionTokens: genResp.UsageMetadata.CandidatesTokenCount,
+	}
+
+	return genResp.Candidates[0].Content.Parts[0].Text, usage, nil
 }

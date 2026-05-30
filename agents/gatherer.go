@@ -51,7 +51,21 @@ Do NOT produce a plan — just gather and organize the context.`
 
 const maxGatherCalls = 25
 
+// GatherResult holds the gathered context and token usage.
+type GatherResult struct {
+	Content      string
+	PromptTokens int
+	CompTokens   int
+	Model        string
+}
+
 func GatherContext(ctx context.Context, ol *ollama.Client, issueTitle, issueBody, summaries string, tools []ollama.Tool, handler ollama.ToolHandler) (string, error) {
+	r, err := GatherContextWithUsage(ctx, ol, issueTitle, issueBody, summaries, tools, handler)
+	return r.Content, err
+}
+
+// GatherContextWithUsage works like GatherContext but also returns token usage.
+func GatherContextWithUsage(ctx context.Context, ol *ollama.Client, issueTitle, issueBody, summaries string, tools []ollama.Tool, handler ollama.ToolHandler) (GatherResult, error) {
 	userPrompt := fmt.Sprintf("## Issue: %s\n\n%s\n\n## Project Summaries\n\n%s", issueTitle, issueBody, summaries)
 
 	resp, err := ol.ChatWithTools(ctx, ollama.ChatRequest{
@@ -64,8 +78,13 @@ func GatherContext(ctx context.Context, ol *ollama.Client, issueTitle, issueBody
 		Options: &ollama.Options{Temperature: 0},
 	}, handler, maxGatherCalls)
 	if err != nil {
-		return "", fmt.Errorf("gatherer: %w", err)
+		return GatherResult{}, fmt.Errorf("gatherer: %w", err)
 	}
 
-	return resp.Message.Content, nil
+	return GatherResult{
+		Content:      resp.Message.Content,
+		PromptTokens: resp.PromptEvalCount,
+		CompTokens:   resp.EvalCount,
+		Model:        gathererModel,
+	}, nil
 }

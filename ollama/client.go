@@ -55,7 +55,9 @@ type Options struct {
 }
 
 type ChatResponse struct {
-	Message Message `json:"message"`
+	Message         Message `json:"message"`
+	PromptEvalCount int     `json:"prompt_eval_count"`
+	EvalCount       int     `json:"eval_count"`
 }
 
 func NewClient(baseURL string) *Client {
@@ -100,13 +102,19 @@ func (c *Client) Chat(ctx context.Context, req ChatRequest) (ChatResponse, error
 // model responds with tool calls, executes them via the provided handler,
 // appends results, and calls again until the model produces final content.
 func (c *Client) ChatWithTools(ctx context.Context, req ChatRequest, handler ToolHandler, maxCalls int) (ChatResponse, error) {
+	var totalPromptEval, totalEval int
 	for range maxCalls {
 		resp, err := c.Chat(ctx, req)
 		if err != nil {
 			return ChatResponse{}, err
 		}
 
+		totalPromptEval += resp.PromptEvalCount
+		totalEval += resp.EvalCount
+
 		if len(resp.Message.ToolCalls) == 0 {
+			resp.PromptEvalCount = totalPromptEval
+			resp.EvalCount = totalEval
 			return resp, nil
 		}
 
