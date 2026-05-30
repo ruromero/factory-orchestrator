@@ -3,8 +3,10 @@ package harness
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/ruromero/la-fabriquilla/ollama"
+	"github.com/ruromero/la-fabriquilla/sandbox"
 )
 
 type CompositeToolHandler struct {
@@ -26,7 +28,19 @@ func (c *CompositeToolHandler) Execute(ctx context.Context, name string, args ma
 	if !ok {
 		return "", fmt.Errorf("unknown tool: %s", name)
 	}
-	return h.Execute(ctx, name, args)
+	result, err := h.Execute(ctx, name, args)
+	if err != nil {
+		return "", err
+	}
+	redacted, events := sandbox.RedactSecrets(result)
+	for _, e := range events {
+		slog.Warn("credential redacted from tool response",
+			"tool", name,
+			"pattern", e.Pattern,
+			"line", e.Line,
+		)
+	}
+	return redacted, nil
 }
 
 func FilterTools(tools []ollama.Tool, allowed map[string]bool) []ollama.Tool {
