@@ -29,13 +29,16 @@ func main() {
 	state.RecordTokenUsage("designer", result.Model, result.PromptTokens, result.CompTokens, 0, elapsed.Seconds())
 
 	traces.Log(traces.Trace{
-		IssueNumber:  state.IssueNumber,
-		Phase:        "designer",
-		Model:        result.Model,
-		PromptTokens: result.PromptTokens,
-		CompTokens:   result.CompTokens,
-		Duration:     elapsed.String(),
-		StartedAt:    start,
+		IssueNumber:     state.IssueNumber,
+		Phase:           "designer",
+		Model:           result.Model,
+		PromptTokens:    result.PromptTokens,
+		CompTokens:      result.CompTokens,
+		Duration:        elapsed.String(),
+		StartedAt:       start,
+		CumPromptTokens: state.TotalPromptTokens,
+		CumCompTokens:   state.TotalCompTokens,
+		CumCostUSD:      state.TotalCostUSD,
 	})
 
 	state.Design = result.Content

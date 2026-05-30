@@ -53,14 +53,17 @@ func main() {
 
 	state.RecordTokenUsage("coder", codeResult.Model, codeResult.PromptTokens, codeResult.CompTokens, codeResult.ToolCalls, elapsed.Seconds())
 	traces.Log(traces.Trace{
-		IssueNumber:  state.IssueNumber,
-		Phase:        "coder",
-		Model:        codeResult.Model,
-		PromptTokens: codeResult.PromptTokens,
-		CompTokens:   codeResult.CompTokens,
-		ToolCalls:    codeResult.ToolCalls,
-		Duration:     elapsed.String(),
-		StartedAt:    start,
+		IssueNumber:     state.IssueNumber,
+		Phase:           "coder",
+		Model:           codeResult.Model,
+		PromptTokens:    codeResult.PromptTokens,
+		CompTokens:      codeResult.CompTokens,
+		ToolCalls:       codeResult.ToolCalls,
+		Duration:        elapsed.String(),
+		StartedAt:       start,
+		CumPromptTokens: state.TotalPromptTokens,
+		CumCompTokens:   state.TotalCompTokens,
+		CumCostUSD:      state.TotalCostUSD,
 	})
 
 	code := codeResult.Content
@@ -75,14 +78,17 @@ func main() {
 
 	state.RecordTokenUsage("reviewer", review.Model, review.PromptTokens, review.CompTokens, review.ToolCalls, elapsed.Seconds())
 	traces.Log(traces.Trace{
-		IssueNumber:  state.IssueNumber,
-		Phase:        "reviewer",
-		Model:        review.Model,
-		PromptTokens: review.PromptTokens,
-		CompTokens:   review.CompTokens,
-		ToolCalls:    review.ToolCalls,
-		Duration:     elapsed.String(),
-		StartedAt:    start,
+		IssueNumber:     state.IssueNumber,
+		Phase:           "reviewer",
+		Model:           review.Model,
+		PromptTokens:    review.PromptTokens,
+		CompTokens:      review.CompTokens,
+		ToolCalls:       review.ToolCalls,
+		Duration:        elapsed.String(),
+		StartedAt:       start,
+		CumPromptTokens: state.TotalPromptTokens,
+		CumCompTokens:   state.TotalCompTokens,
+		CumCostUSD:      state.TotalCostUSD,
 	})
 
 	for i := 0; i < cfg.MaxIterations && pipeline.ReviewNeedsIteration(review.Correctness, review.Security, review.Intent); i++ {
@@ -100,14 +106,17 @@ func main() {
 
 		state.RecordTokenUsage("iterator", iterResult.Model, iterResult.PromptTokens, iterResult.CompTokens, iterResult.ToolCalls, elapsed.Seconds())
 		traces.Log(traces.Trace{
-			IssueNumber:  state.IssueNumber,
-			Phase:        "iterator",
-			Model:        iterResult.Model,
-			PromptTokens: iterResult.PromptTokens,
-			CompTokens:   iterResult.CompTokens,
-			ToolCalls:    iterResult.ToolCalls,
-			Duration:     elapsed.String(),
-			StartedAt:    start,
+			IssueNumber:     state.IssueNumber,
+			Phase:           "iterator",
+			Model:           iterResult.Model,
+			PromptTokens:    iterResult.PromptTokens,
+			CompTokens:      iterResult.CompTokens,
+			ToolCalls:       iterResult.ToolCalls,
+			Duration:        elapsed.String(),
+			StartedAt:       start,
+			CumPromptTokens: state.TotalPromptTokens,
+			CumCompTokens:   state.TotalCompTokens,
+			CumCostUSD:      state.TotalCostUSD,
 		})
 
 		start = time.Now()
@@ -120,14 +129,17 @@ func main() {
 
 		state.RecordTokenUsage("reviewer", review.Model, review.PromptTokens, review.CompTokens, review.ToolCalls, elapsed.Seconds())
 		traces.Log(traces.Trace{
-			IssueNumber:  state.IssueNumber,
-			Phase:        "reviewer",
-			Model:        review.Model,
-			PromptTokens: review.PromptTokens,
-			CompTokens:   review.CompTokens,
-			ToolCalls:    review.ToolCalls,
-			Duration:     elapsed.String(),
-			StartedAt:    start,
+			IssueNumber:     state.IssueNumber,
+			Phase:           "reviewer",
+			Model:           review.Model,
+			PromptTokens:    review.PromptTokens,
+			CompTokens:      review.CompTokens,
+			ToolCalls:       review.ToolCalls,
+			Duration:        elapsed.String(),
+			StartedAt:       start,
+			CumPromptTokens: state.TotalPromptTokens,
+			CumCompTokens:   state.TotalCompTokens,
+			CumCostUSD:      state.TotalCostUSD,
 		})
 	}
 

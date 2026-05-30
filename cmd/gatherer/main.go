@@ -53,14 +53,17 @@ func main() {
 	state.RecordTokenUsage("gatherer", result.Model, result.PromptTokens, result.CompTokens, result.ToolCalls, elapsed.Seconds())
 
 	traces.Log(traces.Trace{
-		IssueNumber:  state.IssueNumber,
-		Phase:        "gatherer",
-		Model:        result.Model,
-		PromptTokens: result.PromptTokens,
-		CompTokens:   result.CompTokens,
-		ToolCalls:    result.ToolCalls,
-		Duration:     elapsed.String(),
-		StartedAt:    start,
+		IssueNumber:     state.IssueNumber,
+		Phase:           "gatherer",
+		Model:           result.Model,
+		PromptTokens:    result.PromptTokens,
+		CompTokens:      result.CompTokens,
+		ToolCalls:       result.ToolCalls,
+		Duration:        elapsed.String(),
+		StartedAt:       start,
+		CumPromptTokens: state.TotalPromptTokens,
+		CumCompTokens:   state.TotalCompTokens,
+		CumCostUSD:      state.TotalCostUSD,
 	})
 
 	state.GatheredContext = result.Content

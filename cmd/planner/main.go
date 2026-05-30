@@ -37,13 +37,16 @@ func main() {
 	state.RecordTokenUsage("planner", plan.Model, plan.PromptTokens, plan.CompTokens, 0, elapsed.Seconds())
 
 	traces.Log(traces.Trace{
-		IssueNumber:  state.IssueNumber,
-		Phase:        "planner",
-		Model:        plan.Model,
-		PromptTokens: plan.PromptTokens,
-		CompTokens:   plan.CompTokens,
-		Duration:     elapsed.String(),
-		StartedAt:    start,
+		IssueNumber:     state.IssueNumber,
+		Phase:           "planner",
+		Model:           plan.Model,
+		PromptTokens:    plan.PromptTokens,
+		CompTokens:      plan.CompTokens,
+		Duration:        elapsed.String(),
+		StartedAt:       start,
+		CumPromptTokens: state.TotalPromptTokens,
+		CumCompTokens:   state.TotalCompTokens,
+		CumCostUSD:      state.TotalCostUSD,
 	})
 
 	state.PlanOutcome = plan.Outcome
