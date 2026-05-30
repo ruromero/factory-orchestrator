@@ -1,0 +1,15 @@
+{
+  "name": "reviewer-approves-clean-code",
+  "phase": "reviewer",
+  "inputs": {
+    "issue_title": "Add ParseDuration helper",
+    "diff": "--- a/config/helpers.go\n+++ b/config/helpers.go\n@@ -0,0 +1,15 @@\n+package config\n+\n+import (\n+\t\"fmt\"\n+\t\"time\"\n+)\n+\n+// ParseDuration parses a duration string and returns a time.Duration.\n+func ParseDuration(s string) (time.Duration, error) {\n+\td, err := time.ParseDuration(s)\n+\tif err != nil {\n+\t\treturn 0, fmt.Errorf(\"parsing duration %q: %w\", s, err)\n+\t}\n+\treturn d, nil\n+}",
+    "plan": "Add ParseDuration helper that wraps time.ParseDuration with error context."
+  },
+  "assertions": [
+    {"type": "severity_present", "value": "PASS"},
+    {"type": "output_not_contains", "value": "[CRITICAL]"},
+    {"type": "output_not_contains", "value": "[MEDIUM]"}
+  ],
+  "pass_threshold": "8/10"
+}
