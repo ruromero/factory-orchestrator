@@ -2,10 +2,10 @@
 
 ## Overview
 
-The factory-orchestrator evolves from a monolithic Go binary into a set of
+The la-fabriquilla evolves from a monolithic Go binary into a set of
 purpose-built binaries, each with scoped credentials and optional sandbox
 isolation. The orchestrator polls GitHub repos for issues tagged
-`factory:ready`, runs them through a phased LLM pipeline, and opens PRs with
+`fabriquilla:ready`, runs them through a phased LLM pipeline, and opens PRs with
 the results. v2 adds: separate GitHub App identities per trust boundary,
 OpenShell sandboxing per phase, a pluggable external review integration, a
 self-improvement feedback loop, and comprehensive guardrails.
@@ -99,9 +99,9 @@ overhead (webhook URLs, private keys, installation grants per repo).
 
 | GitHub App | Binaries | Permissions | Rationale |
 |---|---|---|---|
-| **factory-dispatcher** | dispatcher | issues:write, contents:read | Read/write issues and labels, read repo files for readiness and context. Cannot create branches or PRs. |
-| **factory-worker** | gatherer, coder, iterator | contents:read | Read repo contents and clone for Serena. Cannot write issues, create branches, or open PRs. |
-| **factory-committer** | committer, feedback | contents:write, pull_requests:write, issues:write | Create branches, commits, PRs, and relabel issues. The only identity that can push code. |
+| **fabriquilla-dispatcher** | dispatcher | issues:write, contents:read | Read/write issues and labels, read repo files for readiness and context. Cannot create branches or PRs. |
+| **fabriquilla-worker** | gatherer, coder, iterator | contents:read | Read repo contents and clone for Serena. Cannot write issues, create branches, or open PRs. |
+| **fabriquilla-committer** | committer, feedback | contents:write, pull_requests:write, issues:write | Create branches, commits, PRs, and relabel issues. The only identity that can push code. |
 
 **researcher**, **planner**, **designer**, **reviewer** need zero GitHub
 credentials. All inputs come from pipeline state. All outputs go to pipeline
@@ -371,7 +371,7 @@ RUN npm install -g typescript-language-server typescript
   "repos": [
     {
       "owner": "ruromero",
-      "repo": "factory-orchestrator",
+      "repo": "la-fabriquilla",
       "language": "go",
       "sandbox_image": "factory-go:latest"
     }
@@ -501,11 +501,11 @@ The arbiter (running as part of the reviewer binary via DeepSeek API):
 ## 7. Complete Pipeline Flow
 
 ```
-1. Human creates GitHub issue, adds label "factory:ready"
+1. Human creates GitHub issue, adds label "fabriquilla:ready"
 
 2. Dispatcher polls GitHub, finds issue
    ├── Checks repo readiness (required files)
-   ├── Swaps label: factory:ready → factory:in-progress
+   ├── Swaps label: fabriquilla:ready → fabriquilla:in-progress
    ├── Loads repo context (README, ARCHITECTURE, CONVENTIONS)
    ├── Sanitizes issue title/body
    ├── Loads human comment history
@@ -526,8 +526,8 @@ The arbiter (running as part of the reviewer binary via DeepSeek API):
    │     Input: gathered + research context + conventions + comments
    │     Output: plan outcome + content → State
    │     │
-   │     ├── needs_info → comment on issue, label factory:needs-info, stop
-   │     ├── decompose → create sub-issues, label factory:tracking, stop
+   │     ├── needs_info → comment on issue, label fabriquilla:needs-info, stop
+   │     ├── decompose → create sub-issues, label fabriquilla:tracking, stop
    │     └── plan → continue
    │
    ├── Phase: Design (sandbox)
@@ -564,7 +564,7 @@ The arbiter (running as part of the reviewer binary via DeepSeek API):
    │     │     Loop (max_iterations per cycle, max_total_iterations overall)
    │     │
    │     ├── If root_cause items:
-   │     │     Dispatcher creates new issues with factory:ready
+   │     │     Dispatcher creates new issues with fabriquilla:ready
    │     │     (max 3 per PR, depth 1 — root cause issues cannot spawn
    │     │      further root cause issues)
    │     │
@@ -576,7 +576,7 @@ The arbiter (running as part of the reviewer binary via DeepSeek API):
    │     │     Committer checks all status checks pass
    │     │     Committer checks no unresolved review threads
    │     │     Committer merges PR
-   │     │     Label factory:done
+   │     │     Label fabriquilla:done
    │     │
    │     └── Human requests changes:
    │           Parse review comments via HumanAdapter
@@ -587,7 +587,7 @@ The arbiter (running as part of the reviewer binary via DeepSeek API):
          If CI breaks:
            Create revert PR automatically
            Create new issue with failure context
-           Label factory:reverted on original issue
+           Label fabriquilla:reverted on original issue
 ```
 
 ---
@@ -605,7 +605,7 @@ feedback binary). No guardrail depends on LLM judgment.
 | max_total_iterations | 5 | feedback binary: across all cycles for one issue |
 | max_wall_time | 30m | dispatcher: total processing time per issue |
 
-When hit: stop iterating, label `factory:needs-human`, post comment with
+When hit: stop iterating, label `fabriquilla:needs-human`, post comment with
 what converged and what didn't.
 
 ### Scope limits
@@ -616,7 +616,7 @@ what converged and what didn't.
 | max_files_changed | 20 | committer: refuse to commit if exceeded |
 | max_pr_size_lines | 500 | committer: refuse if diff exceeds this |
 
-When hit: stop, label `factory:needs-human`, comment "PR scope has grown
+When hit: stop, label `fabriquilla:needs-human`, comment "PR scope has grown
 beyond safe limits."
 
 ### Root cause limits
@@ -655,7 +655,7 @@ deploy/*                 k8s manifests and sandbox configs
 ```
 
 Enforced by `pipeline.ValidateFiles()` in the committer binary. If any file
-matches a blocked pattern, the committer labels `factory:needs-human` with a
+matches a blocked pattern, the committer labels `fabriquilla:needs-human` with a
 comment explaining which files were blocked and why.
 
 ### Review deadlock prevention
@@ -670,7 +670,7 @@ in the feedback system. The human sees both perspectives in PR comments.
 ## 9. needs_info Cases
 
 Any phase can signal that it needs human input. The dispatcher posts a
-structured comment and labels the issue `factory:needs-info`.
+structured comment and labels the issue `fabriquilla:needs-info`.
 
 ### Comment format
 
@@ -695,7 +695,7 @@ a) {option with trade-off description}
 b) {option with trade-off description}
 c) Something else — please specify
 
-<!-- factory:needs-info:{phase}:{question_count} -->
+<!-- fabriquilla:needs-info:{phase}:{question_count} -->
 ```
 
 The HTML comment at the bottom enables the dispatcher to parse which phase
@@ -962,12 +962,12 @@ Host machine
 │     Manages sandbox lifecycle, ~512MB RAM
 │     SQLite backend (single-node)
 │
-├── factory-dispatcher (systemd service or k3s Deployment)
+├── fabriquilla-dispatcher (systemd service or k3s Deployment)
 │     Long-running poll loop
 │     Mounts /data/pipeline for state files
 │     Contains all phase binaries in same image
 │
-├── factory-dashboard (systemd service or k3s Deployment)
+├── fabriquilla-dashboard (systemd service or k3s Deployment)
 │     Web UI on port 8080
 │     Reads /data/pipeline and /data/feedback
 │     Single bearer token auth
@@ -1042,7 +1042,7 @@ cmd/
           Reports.tsx      feedback analysis, metrics, trends
           Evals.tsx        golden-set evaluation results
         components/
-          IssueQueue.tsx   factory:ready / in-progress / done
+          IssueQueue.tsx   fabriquilla:ready / in-progress / done
           PhaseTimeline.tsx phase progress with durations
           FindingsChart.tsx recurring finding categories over time
           CostTracker.tsx  API token usage per issue/phase/model
@@ -1061,7 +1061,7 @@ cmd/
 **Observe (live):**
 - Pipeline status: which issue is being processed, current phase, duration
 - Sandbox status: active sandboxes, resource usage
-- Issue queue: `factory:ready` → `factory:in-progress` → `factory:done`
+- Issue queue: `fabriquilla:ready` → `fabriquilla:in-progress` → `fabriquilla:done`
 - Current iterate loop: cycle number, remaining findings
 - Structured logs: filterable by repo, phase, severity
 
@@ -1076,8 +1076,8 @@ cmd/
 **Control:**
 - Shadow mode toggle per repo
 - Pause/resume processing per repo
-- Retry a stuck issue (relabel to `factory:ready`)
-- Force-escalate to human (label `factory:needs-human`)
+- Retry a stuck issue (relabel to `fabriquilla:ready`)
+- Force-escalate to human (label `fabriquilla:needs-human`)
 
 ### API routes
 
@@ -1115,7 +1115,7 @@ Host machine
 │
 ├── ... (existing services)
 │
-└── factory-dashboard (systemd service or k3s Deployment)
+└── fabriquilla-dashboard (systemd service or k3s Deployment)
       Port: 8080
       Mounts: /data/pipeline (read), /data/feedback (read), config.json (rw)
       Env: DASHBOARD_TOKEN=<random-token>
@@ -1128,7 +1128,7 @@ Host machine
 - Auth: single bearer token from `DASHBOARD_TOKEN` env var
 - Credentials are write-only — the API never returns stored secrets
 - Config writes go through validation before saving
-- The dashboard uses the factory-dispatcher GitHub App credentials for
+- The dashboard uses the fabriquilla-dispatcher GitHub App credentials for
   read-only GitHub API access (issue/PR status)
 - No direct access to sandboxes or LLM endpoints
 
@@ -1224,7 +1224,7 @@ Verify: each image has the required language server and tools.
 Implement all guardrails in dispatcher, committer, and feedback binary.
 Add `pipeline/guardrails.go` with limit checks.
 
-Verify: hitting max_iterations labels `factory:needs-human`. Committer
+Verify: hitting max_iterations labels `fabriquilla:needs-human`. Committer
 rejects blocked paths. Root cause depth > 1 is blocked.
 
 ### Phase 10: Golden-set evaluation

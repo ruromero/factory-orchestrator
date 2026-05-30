@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ruromero/factory-orchestrator/github"
-	"github.com/ruromero/factory-orchestrator/ollama"
+	"github.com/ruromero/la-fabriquilla/github"
+	"github.com/ruromero/la-fabriquilla/ollama"
 )
 
 type ContextToolHandler struct {

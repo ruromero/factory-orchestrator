@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ruromero/factory-orchestrator/ollama"
+	"github.com/ruromero/la-fabriquilla/ollama"
 )
 
 const iteratorSystemPrompt = `You are a software developer applying review feedback to code.
