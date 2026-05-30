@@ -120,11 +120,6 @@ func processIssue(ctx context.Context, gh *github.Client, cfg config.Config, iss
 
 	store := pipeline.NewFileStateStore(cfg.StateDir)
 	key := pipeline.StateKey(gh.Owner(), gh.Repo(), issue.Number)
-	defer func() {
-		if err := store.Delete(ctx, key); err != nil {
-			log.Warn("failed to clean up state file", "error", err)
-		}
-	}()
 
 	rc := harness.LoadRepoContext(ctx, gh)
 

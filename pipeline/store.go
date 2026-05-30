@@ -32,7 +32,7 @@ func NewFileStateStore(baseDir string) *FileStateStore {
 func (s *FileStateStore) Save(_ context.Context, key string, state *State) error {
 	p := s.StatePath(key)
 	dir := filepath.Dir(p)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return fmt.Errorf("create state dir %s: %w", dir, err)
 	}
 	return SaveState(p, state)
@@ -46,7 +46,7 @@ func (s *FileStateStore) Load(_ context.Context, key string) (*State, error) {
 // Delete removes the state file at {BaseDir}/{key}.json.
 func (s *FileStateStore) Delete(_ context.Context, key string) error {
 	p := s.StatePath(key)
-	if err := os.Remove(p); err != nil {
+	if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("delete state %s: %w", p, err)
 	}
 	return nil
