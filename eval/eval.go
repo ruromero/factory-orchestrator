@@ -42,6 +42,48 @@ type FileState struct {
 	Path string
 }
 
+// OutputFunc is called for each run to produce the output and files
+// that assertions are checked against. When LLM execution is wired
+// in, this function calls the actual agent. For structural validation
+// it returns mock data.
+type OutputFunc func(tc TestCase, run int) (output string, files []FileState)
+
+// RunCase executes a test case the specified number of times using
+// outputFn to produce output per run. Returns a RunResult.
+func RunCase(tc TestCase, runs int, outputFn OutputFunc) (RunResult, error) {
+	threshold, totalRuns, err := ParseThreshold(tc.PassThreshold)
+	if err != nil {
+		return RunResult{}, fmt.Errorf("case %s: %w", tc.Name, err)
+	}
+
+	passes := 0
+	var failures []string
+	for run := 1; run <= runs; run++ {
+		output, files := outputFn(tc, run)
+		allPassed := true
+		for _, a := range tc.Assertions {
+			if !CheckAssertion(a, output, files) {
+				allPassed = false
+				failures = append(failures,
+					fmt.Sprintf("Run %d: assertion failed: %s %q", run, a.Type, a.Value))
+			}
+		}
+		if allPassed {
+			passes++
+		}
+	}
+
+	return RunResult{
+		Case:      tc.Phase + "/" + tc.Name,
+		Runs:      runs,
+		Passes:    passes,
+		Threshold: threshold,
+		TotalRuns: totalRuns,
+		Pass:      passes >= threshold,
+		Failures:  failures,
+	}, nil
+}
+
 // LoadTestCases loads all .json test case files from dir and its
 // subdirectories.
 func LoadTestCases(dir string) ([]TestCase, error) {
@@ -105,15 +147,15 @@ func ParseThreshold(s string) (passes int, total int, err error) {
 func CheckAssertion(a Assertion, output string, files []FileState) bool {
 	switch a.Type {
 	case "outcome_equals":
-		return strings.HasPrefix(output, a.Value) || strings.Contains(output, a.Value)
+		return matchOutcome(output, a.Value)
 	case "output_contains":
 		return strings.Contains(output, a.Value)
 	case "output_not_contains":
 		return !strings.Contains(output, a.Value)
 	case "file_count_gte":
 		n, err := strconv.Atoi(a.Value)
-		if err != nil {
-			slog.Warn("file_count_gte: invalid value", "value", a.Value, "error", err)
+		if err != nil || n < 0 {
+			slog.Warn("file_count_gte: invalid value", "value", a.Value)
 			return false
 		}
 		return len(files) >= n
@@ -137,4 +179,31 @@ func CheckAssertion(a Assertion, output string, files []FileState) bool {
 		slog.Warn("unknown assertion type", "type", a.Type)
 		return false
 	}
+}
+
+// matchOutcome checks if the output begins with the expected outcome
+// as a distinct token (word boundary: followed by end-of-string,
+// whitespace, colon, or newline). This prevents "disapprove"
+// matching "approve".
+func matchOutcome(output, expected string) bool {
+	idx := strings.Index(output, expected)
+	if idx < 0 {
+		return false
+	}
+	if idx > 0 {
+		prev := output[idx-1]
+		if isAlpha(prev) {
+			return false
+		}
+	}
+	end := idx + len(expected)
+	if end >= len(output) {
+		return true
+	}
+	next := output[end]
+	return next == ' ' || next == ':' || next == '\n' || next == '\t' || next == ','
+}
+
+func isAlpha(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
 }

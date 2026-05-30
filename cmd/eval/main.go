@@ -11,13 +11,18 @@ import (
 
 func main() {
 	dir := flag.String("dir", "tests/golden", "path to golden-set directory")
-	runs := flag.Int("runs", 10, "number of runs per test case")
+	runs := flag.Int("runs", 0, "number of runs per test case (0 = use threshold denominator)")
 	flag.Parse()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
 	slog.SetDefault(logger)
+
+	if *runs < 0 {
+		slog.Error("--runs must be >= 0")
+		os.Exit(1)
+	}
 
 	cases, err := eval.LoadTestCases(*dir)
 	if err != nil {
@@ -30,45 +35,28 @@ func main() {
 		os.Exit(0)
 	}
 
-	slog.Info("loaded test cases", "count", len(cases), "runs_per_case", *runs)
+	slog.Info("loaded test cases", "count", len(cases))
+
+	mockOutputFn := func(tc eval.TestCase, run int) (string, []eval.FileState) {
+		return buildMockOutput(tc), buildMockFiles(tc)
+	}
 
 	var results []eval.RunResult
 	for _, tc := range cases {
-		threshold, totalRuns, err := eval.ParseThreshold(tc.PassThreshold)
+		caseRuns := *runs
+		if caseRuns == 0 {
+			_, total, err := eval.ParseThreshold(tc.PassThreshold)
+			if err != nil {
+				slog.Error("invalid threshold", "case", tc.Name, "error", err)
+				os.Exit(1)
+			}
+			caseRuns = total
+		}
+
+		result, err := eval.RunCase(tc, caseRuns, mockOutputFn)
 		if err != nil {
-			slog.Error("invalid threshold", "case", tc.Name, "error", err)
+			slog.Error("failed to run case", "case", tc.Name, "error", err)
 			os.Exit(1)
-		}
-
-		// Structural validation: check assertions against a mock output.
-		// Actual LLM execution will be wired in later.
-		mockOutput := buildMockOutput(tc)
-		mockFiles := buildMockFiles(tc)
-
-		passes := 0
-		var failures []string
-		for run := 1; run <= *runs; run++ {
-			allPassed := true
-			for _, a := range tc.Assertions {
-				if !eval.CheckAssertion(a, mockOutput, mockFiles) {
-					allPassed = false
-					failures = append(failures,
-						fmt.Sprintf("Run %d: assertion failed: %s %q", run, a.Type, a.Value))
-				}
-			}
-			if allPassed {
-				passes++
-			}
-		}
-
-		result := eval.RunResult{
-			Case:      tc.Phase + "/" + tc.Name,
-			Runs:      *runs,
-			Passes:    passes,
-			Threshold: threshold,
-			TotalRuns: totalRuns,
-			Pass:      passes >= threshold,
-			Failures:  failures,
 		}
 		results = append(results, result)
 	}
@@ -91,7 +79,7 @@ func buildMockOutput(tc eval.TestCase) string {
 	for _, a := range tc.Assertions {
 		switch a.Type {
 		case "outcome_equals":
-			parts = append(parts, a.Value)
+			parts = append(parts, a.Value+":")
 		case "output_contains":
 			parts = append(parts, a.Value)
 		case "severity_present":
@@ -121,7 +109,6 @@ func buildMockFiles(tc eval.TestCase) []eval.FileState {
 		}
 	}
 
-	// Pad file list to satisfy file_count_gte.
 	for len(files) < maxCount {
 		files = append(files, eval.FileState{
 			Path: fmt.Sprintf("mock/file_%d.go", len(files)),

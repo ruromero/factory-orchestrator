@@ -7,9 +7,9 @@
     "plan": "Add ParseDuration helper that wraps time.ParseDuration with error context."
   },
   "assertions": [
-    {"type": "outcome_equals", "value": "approve"},
+    {"type": "severity_present", "value": "PASS"},
     {"type": "output_not_contains", "value": "[CRITICAL]"},
-    {"type": "output_not_contains", "value": "reject"}
+    {"type": "output_not_contains", "value": "[MEDIUM]"}
   ],
   "pass_threshold": "8/10"
 }

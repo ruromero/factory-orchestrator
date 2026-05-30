@@ -1,0 +1,16 @@
+{
+  "name": "arbiter-escalates-systemic-issue-as-root-cause",
+  "phase": "arbiter",
+  "inputs": {
+    "qodo_findings": "[{\"category\": \"missing_validation\", \"description\": \"No input validation on config fields\", \"file\": \"config/config.go\"}]",
+    "factory_findings": "[{\"category\": \"missing_validation\", \"description\": \"Config validation is missing across the codebase, not just this file\"}]",
+    "conventions": "All untrusted input must pass through sandbox.SanitizeInput.",
+    "architecture": "Config is loaded once at startup. No validation layer exists."
+  },
+  "assertions": [
+    {"type": "output_contains", "value": "root_cause"},
+    {"type": "output_contains", "value": "validation"},
+    {"type": "output_not_contains", "value": "dismissed"}
+  ],
+  "pass_threshold": "7/10"
+}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -57,16 +58,26 @@ func TestParseThreshold(t *testing.T) {
 }
 
 func TestCheckAssertion(t *testing.T) {
-	t.Run("outcome_equals", func(t *testing.T) {
+	t.Run("outcome_equals with word boundary", func(t *testing.T) {
 		a := Assertion{Type: "outcome_equals", Value: "plan"}
 		if !CheckAssertion(a, "plan: fix the nil pointer", nil) {
-			t.Error("expected pass when output starts with value")
+			t.Error("expected pass when output starts with value followed by colon")
 		}
-		if !CheckAssertion(a, "outcome: plan produced", nil) {
-			t.Error("expected pass when output contains value")
+		if !CheckAssertion(a, "plan\nmore details", nil) {
+			t.Error("expected pass when output starts with value followed by newline")
 		}
 		if CheckAssertion(a, "needs_info: missing details", nil) {
 			t.Error("expected fail when output does not contain value")
+		}
+	})
+
+	t.Run("outcome_equals prevents substring false positives", func(t *testing.T) {
+		a := Assertion{Type: "outcome_equals", Value: "approve"}
+		if CheckAssertion(a, "disapprove: this is wrong", nil) {
+			t.Error("expected fail: 'disapprove' should not match 'approve'")
+		}
+		if !CheckAssertion(a, "approve: looks good", nil) {
+			t.Error("expected pass: 'approve:' should match")
 		}
 	})
 
@@ -103,6 +114,13 @@ func TestCheckAssertion(t *testing.T) {
 		a.Value = "bad"
 		if CheckAssertion(a, "", files) {
 			t.Error("expected fail for invalid value")
+		}
+	})
+
+	t.Run("file_count_gte rejects negative", func(t *testing.T) {
+		a := Assertion{Type: "file_count_gte", Value: "-1"}
+		if CheckAssertion(a, "", nil) {
+			t.Error("expected fail for negative value")
 		}
 	})
 
@@ -150,6 +168,33 @@ func TestCheckAssertion(t *testing.T) {
 	})
 }
 
+func TestRunCase(t *testing.T) {
+	tc := TestCase{
+		Name:          "test-run-case",
+		Phase:         "planner",
+		Assertions:    []Assertion{{Type: "output_contains", Value: "hello"}},
+		PassThreshold: "2/3",
+	}
+
+	passingFn := func(tc TestCase, run int) (string, []FileState) {
+		return "hello world", nil
+	}
+
+	result, err := RunCase(tc, 3, passingFn)
+	if err != nil {
+		t.Fatalf("RunCase: %v", err)
+	}
+	if result.Passes != 3 {
+		t.Errorf("Passes = %d, want 3", result.Passes)
+	}
+	if !result.Pass {
+		t.Error("expected Pass = true")
+	}
+	if result.Threshold != 2 {
+		t.Errorf("Threshold = %d, want 2", result.Threshold)
+	}
+}
+
 func TestLoadTestCases(t *testing.T) {
 	t.Run("loads_valid_files", func(t *testing.T) {
 		dir := t.TempDir()
@@ -169,7 +214,6 @@ func TestLoadTestCases(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// Non-JSON file should be ignored.
 		if err := os.WriteFile(filepath.Join(dir, "readme.txt"), []byte("ignore me"), 0644); err != nil {
 			t.Fatal(err)
 		}
@@ -263,32 +307,9 @@ func TestFormatReport(t *testing.T) {
 	if report == "" {
 		t.Fatal("report should not be empty")
 	}
-	if !contains(report, "Golden-Set Evaluation Report") {
-		t.Error("missing report header")
-	}
-	if !contains(report, "PASS") {
-		t.Error("missing PASS status")
-	}
-	if !contains(report, "FAIL") {
-		t.Error("missing FAIL status")
-	}
-	if !contains(report, "1/2 passed") {
-		t.Error("missing overall summary")
-	}
-	if !contains(report, `output_contains "func NewParser"`) {
-		t.Error("missing failure detail")
-	}
-}
-
-func contains(s, substr string) bool {
-	return len(s) > 0 && len(substr) > 0 && (s == substr || len(s) >= len(substr) && searchSubstring(s, substr))
-}
-
-func searchSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
+	for _, want := range []string{"Golden-Set Evaluation Report", "PASS", "FAIL", "1/2 passed", `output_contains "func NewParser"`} {
+		if !strings.Contains(report, want) {
+			t.Errorf("report missing %q", want)
 		}
 	}
-	return false
 }

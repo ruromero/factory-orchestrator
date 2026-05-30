@@ -10,8 +10,8 @@
   },
   "assertions": [
     {"type": "outcome_equals", "value": "needs_info"},
-    {"type": "output_contains", "value": "needs_info"},
-    {"type": "output_not_contains", "value": "plan"}
+    {"type": "output_contains", "value": "NEEDS_INFO"},
+    {"type": "output_not_contains", "value": "PLAN:"}
   ],
   "pass_threshold": "8/10"
 }

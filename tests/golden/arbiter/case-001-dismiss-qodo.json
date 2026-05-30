@@ -1,0 +1,16 @@
+{
+  "name": "arbiter-dismisses-irrelevant-qodo-finding",
+  "phase": "arbiter",
+  "inputs": {
+    "qodo_findings": "[{\"category\": \"style\", \"description\": \"Function too complex, consider refactoring\", \"file\": \"harness/composite.go\"}]",
+    "factory_findings": "[]",
+    "conventions": "Complex functions are acceptable when matching established patterns.",
+    "architecture": "harness/composite.go implements CompositeToolHandler with intentional complexity for routing."
+  },
+  "assertions": [
+    {"type": "output_contains", "value": "dismissed"},
+    {"type": "output_not_contains", "value": "fix_here"},
+    {"type": "output_not_contains", "value": "root_cause"}
+  ],
+  "pass_threshold": "7/10"
+}

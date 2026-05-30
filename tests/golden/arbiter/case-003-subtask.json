@@ -1,0 +1,16 @@
+{
+  "name": "arbiter-classifies-finding-as-subtask",
+  "phase": "arbiter",
+  "inputs": {
+    "qodo_findings": "[{\"category\": \"missing_tests\", \"description\": \"No tests for ParseCodeOutput edge cases\", \"file\": \"pipeline/parse.go\"}]",
+    "factory_findings": "[]",
+    "conventions": "Unit tests for all packages with non-trivial logic.",
+    "architecture": "pipeline/parse.go extracts file changes from LLM output."
+  },
+  "assertions": [
+    {"type": "output_contains", "value": "subtask"},
+    {"type": "output_contains", "value": "test"},
+    {"type": "output_not_contains", "value": "dismissed"}
+  ],
+  "pass_threshold": "7/10"
+}
