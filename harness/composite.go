@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/ruromero/la-fabriquilla/ollama"
 	"github.com/ruromero/la-fabriquilla/sandbox"
@@ -30,14 +31,18 @@ func (c *CompositeToolHandler) Execute(ctx context.Context, name string, args ma
 	}
 	result, err := h.Execute(ctx, name, args)
 	if err != nil {
-		return "", err
+		redactedMsg, _ := sandbox.RedactSecrets(err.Error())
+		return "", fmt.Errorf("%s", redactedMsg)
 	}
 	redacted, events := sandbox.RedactSecrets(result)
-	for _, e := range events {
-		slog.Warn("credential redacted from tool response",
+	if len(events) > 0 {
+		patterns := make([]string, len(events))
+		for i, e := range events {
+			patterns[i] = fmt.Sprintf("%s(%d)", e.Pattern, e.Count)
+		}
+		slog.Warn("credentials redacted from tool response",
 			"tool", name,
-			"pattern", e.Pattern,
-			"line", e.Line,
+			"patterns", strings.Join(patterns, ", "),
 		)
 	}
 	return redacted, nil

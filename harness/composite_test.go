@@ -2,6 +2,7 @@ package harness
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -35,6 +36,27 @@ func TestCompositeRedactsSecrets(t *testing.T) {
 	}
 	if !strings.Contains(got, "[REDACTED:GitHub token]") {
 		t.Errorf("result = %q, want to contain [REDACTED:GitHub token]", got)
+	}
+}
+
+func TestCompositeRedactsErrors(t *testing.T) {
+	secret := "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij"
+	mock := &mockToolHandler{err: fmt.Errorf("auth failed with token %s", secret)}
+
+	c := NewCompositeToolHandler()
+	c.Register([]ollama.Tool{
+		{Type: "function", Function: ollama.ToolDef{Name: "read_file"}},
+	}, mock)
+
+	_, err := c.Execute(context.Background(), "read_file", nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if strings.Contains(err.Error(), secret) {
+		t.Error("secret was not redacted from error message")
+	}
+	if !strings.Contains(err.Error(), "[REDACTED:GitHub token]") {
+		t.Errorf("error = %q, want to contain [REDACTED:GitHub token]", err.Error())
 	}
 }
 

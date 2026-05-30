@@ -46,8 +46,9 @@ func ValidateFiles(files []FileState, blockedPatterns []string) error {
 // keys, IP addresses, and internal hostnames. Returns all violations found.
 func ValidateContents(files []FileState) []ContentViolation {
 	var violations []ContentViolation
+	patterns := sandbox.GetSensitivePatterns()
 	for _, f := range files {
-		for _, sp := range sandbox.SensitivePatterns {
+		for _, sp := range patterns {
 			matches := sp.Pattern.FindAllStringIndex(f.Content, -1)
 			for _, m := range matches {
 				line := 1 + strings.Count(f.Content[:m[0]], "\n")

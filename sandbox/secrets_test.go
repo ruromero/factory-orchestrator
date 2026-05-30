@@ -13,8 +13,8 @@ func TestRedactSecrets(t *testing.T) {
 		wantPattern string
 	}{
 		{
-			"private key",
-			"-----BEGIN RSA PRIVATE KEY-----\nMIIE...",
+			"private key block",
+			"-----BEGIN RSA PRIVATE KEY-----\nMIIE\n-----END RSA PRIVATE KEY-----",
 			"[REDACTED:private key]",
 			"private key",
 		},
@@ -35,6 +35,18 @@ func TestRedactSecrets(t *testing.T) {
 			"Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.xxxxx",
 			"[REDACTED:bearer token]",
 			"bearer token",
+		},
+		{
+			"connection string postgres",
+			"postgresql://user:pass@host:5432/db",
+			"[REDACTED:connection string]",
+			"connection string",
+		},
+		{
+			"connection string mongodb",
+			"mongodb+srv://admin:s3cret@cluster.example.com/mydb",
+			"[REDACTED:connection string]",
+			"connection string",
 		},
 		{
 			"IPv4 address",
@@ -113,6 +125,34 @@ func TestRedactSecretsFalsePositives(t *testing.T) {
 	}
 }
 
+func TestRedactSecretsPEMBlock(t *testing.T) {
+	input := "before\n-----BEGIN RSA PRIVATE KEY-----\nMIIE...\nbase64data\n-----END RSA PRIVATE KEY-----\nafter"
+	got, events := RedactSecrets(input)
+
+	if strings.Contains(got, "MIIE") {
+		t.Error("PEM body was not redacted")
+	}
+	if strings.Contains(got, "base64data") {
+		t.Error("PEM base64 data was not redacted")
+	}
+	if !strings.Contains(got, "[REDACTED:private key]") {
+		t.Error("missing private key redaction marker")
+	}
+	if !strings.Contains(got, "before") || !strings.Contains(got, "after") {
+		t.Error("surrounding text was incorrectly removed")
+	}
+
+	foundKey := false
+	for _, e := range events {
+		if e.Pattern == "private key" {
+			foundKey = true
+		}
+	}
+	if !foundKey {
+		t.Error("missing private key event")
+	}
+}
+
 func TestRedactSecretsMultiLine(t *testing.T) {
 	input := "line1\npassword = \"hunter2!\"\nline3\nghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij\nline5"
 	got, events := RedactSecrets(input)
@@ -130,16 +170,15 @@ func TestRedactSecretsMultiLine(t *testing.T) {
 		t.Error("missing GitHub token redaction marker")
 	}
 
-	// Verify line numbers
-	lineMap := make(map[string]int)
+	countMap := make(map[string]int)
 	for _, e := range events {
-		lineMap[e.Pattern] = e.Line
+		countMap[e.Pattern] = e.Count
 	}
-	if lineMap["password assignment"] != 2 {
-		t.Errorf("password line = %d, want 2", lineMap["password assignment"])
+	if countMap["password assignment"] != 1 {
+		t.Errorf("password count = %d, want 1", countMap["password assignment"])
 	}
-	if lineMap["GitHub token"] != 4 {
-		t.Errorf("GitHub token line = %d, want 4", lineMap["GitHub token"])
+	if countMap["GitHub token"] != 1 {
+		t.Errorf("GitHub token count = %d, want 1", countMap["GitHub token"])
 	}
 }
 
@@ -151,5 +190,17 @@ func TestRedactSecretsCleanText(t *testing.T) {
 	}
 	if len(events) != 0 {
 		t.Errorf("expected no events for clean text, got %+v", events)
+	}
+}
+
+func TestGetSensitivePatterns(t *testing.T) {
+	patterns := GetSensitivePatterns()
+	if len(patterns) != len(sensitivePatterns) {
+		t.Fatalf("got %d patterns, want %d", len(patterns), len(sensitivePatterns))
+	}
+	// Modifying the copy must not affect the original.
+	patterns[0].Name = "MODIFIED"
+	if sensitivePatterns[0].Name == "MODIFIED" {
+		t.Error("GetSensitivePatterns returned a reference, not a copy")
 	}
 }
