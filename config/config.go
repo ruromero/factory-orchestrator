@@ -8,17 +8,20 @@ import (
 )
 
 type Config struct {
-	OllamaURL     string               `json:"ollama_url"`
-	GeminiAPIKey  string               `json:"gemini_api_key,omitempty"`
-	Planner       PlannerConfig        `json:"planner"`
-	PollInterval  Duration             `json:"poll_interval"`
-	MaxIterations int                  `json:"max_iterations"`
-	MaxCostBudget int                  `json:"max_cost_budget"`
-	ShadowMode    bool                 `json:"shadow_mode"`
-	Serena        SerenaConfig         `json:"serena"`
-	Repos         []RepoConfig         `json:"repos"`
-	Apps          map[string]AppConfig `json:"apps,omitempty"`
-	StateDir      string               `json:"state_dir,omitempty"`
+	OllamaURL        string               `json:"ollama_url"`
+	GeminiAPIKey     string               `json:"gemini_api_key,omitempty"`
+	Planner          PlannerConfig        `json:"planner"`
+	PollInterval     Duration             `json:"poll_interval"`
+	MaxIterations    int                  `json:"max_iterations"`
+	MaxCostBudget    int                  `json:"max_cost_budget"`
+	MaxPhaseDuration Duration             `json:"max_phase_duration"`
+	MaxPhaseRetries  int                  `json:"max_phase_retries"`
+	PhaseDurations   map[string]Duration  `json:"phase_durations,omitempty"`
+	ShadowMode       bool                 `json:"shadow_mode"`
+	Serena           SerenaConfig         `json:"serena"`
+	Repos            []RepoConfig         `json:"repos"`
+	Apps             map[string]AppConfig `json:"apps,omitempty"`
+	StateDir         string               `json:"state_dir,omitempty"`
 }
 
 type AppConfig struct {
@@ -40,6 +43,19 @@ type SerenaConfig struct {
 
 func (s SerenaConfig) Enabled() bool {
 	return s.Command != ""
+}
+
+// PhaseDuration returns the timeout for the given phase binary.
+// It checks per-phase overrides first, then the global default,
+// falling back to 15 minutes if nothing is configured.
+func (c *Config) PhaseDuration(phase string) time.Duration {
+	if d, ok := c.PhaseDurations[phase]; ok && d.Duration > 0 {
+		return d.Duration
+	}
+	if c.MaxPhaseDuration.Duration > 0 {
+		return c.MaxPhaseDuration.Duration
+	}
+	return 15 * time.Minute
 }
 
 type RepoConfig struct {
@@ -83,12 +99,14 @@ func LoadConfig(path string) (Config, error) {
 	}
 
 	cfg := Config{
-		OllamaURL:     "http://ollama.ai.svc.cluster.local:11434",
-		PollInterval:  Duration{30 * time.Second},
-		MaxIterations: 3,
-		MaxCostBudget: 100000,
-		ShadowMode:    true,
-		StateDir:      "/data/pipeline",
+		OllamaURL:        "http://ollama.ai.svc.cluster.local:11434",
+		PollInterval:     Duration{30 * time.Second},
+		MaxIterations:    3,
+		MaxCostBudget:    100000,
+		MaxPhaseDuration: Duration{15 * time.Minute},
+		MaxPhaseRetries:  2,
+		ShadowMode:       true,
+		StateDir:         "/data/pipeline",
 	}
 
 	if err := json.Unmarshal(data, &cfg); err != nil {

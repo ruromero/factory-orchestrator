@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -156,17 +157,17 @@ func processIssue(ctx context.Context, gh *github.Client, cfg config.Config, iss
 	statePath := store.StatePath(key)
 
 	log.Info("starting gather phase")
-	if err := runPhase(ctx, "gatherer", statePath); err != nil {
+	if err := runPhase(ctx, &cfg, "gatherer", statePath); err != nil {
 		return fmt.Errorf("gather phase: %w", err)
 	}
 
 	log.Info("starting research phase")
-	if err := runPhase(ctx, "researcher", statePath); err != nil {
+	if err := runPhase(ctx, &cfg, "researcher", statePath); err != nil {
 		log.Warn("research phase failed, continuing", "error", err)
 	}
 
 	log.Info("starting plan phase")
-	if err := runPhase(ctx, "planner", statePath); err != nil {
+	if err := runPhase(ctx, &cfg, "planner", statePath); err != nil {
 		return fmt.Errorf("plan phase: %w", err)
 	}
 
@@ -208,17 +209,17 @@ func processIssue(ctx context.Context, gh *github.Client, cfg config.Config, iss
 		}
 
 		log.Info("starting design phase")
-		if err := runPhase(ctx, "designer", statePath); err != nil {
+		if err := runPhase(ctx, &cfg, "designer", statePath); err != nil {
 			return fmt.Errorf("design phase: %w", err)
 		}
 
 		log.Info("starting code phase (includes review+iterate)")
-		if err := runPhase(ctx, "coder", statePath); err != nil {
+		if err := runPhase(ctx, &cfg, "coder", statePath); err != nil {
 			return fmt.Errorf("code phase: %w", err)
 		}
 
 		log.Info("starting commit phase")
-		if err := runPhase(ctx, "committer", statePath); err != nil {
+		if err := runPhase(ctx, &cfg, "committer", statePath); err != nil {
 			return fmt.Errorf("commit phase: %w", err)
 		}
 
@@ -236,18 +237,62 @@ func processIssue(ctx context.Context, gh *github.Client, cfg config.Config, iss
 	return fmt.Errorf("unknown plan outcome: %s", state.PlanOutcome)
 }
 
-func runPhase(ctx context.Context, binary, statePath string) error {
-	cmd := exec.CommandContext(ctx, binary)
-	cmd.Env = append(os.Environ(),
-		"PIPELINE_STATE_PATH="+statePath,
-		"CONFIG_PATH="+configPath,
-	)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("%s: %w", binary, err)
+func runPhase(ctx context.Context, cfg *config.Config, binary, statePath string) error {
+	maxRetries := cfg.MaxPhaseRetries
+	if maxRetries <= 0 {
+		maxRetries = 2
 	}
-	return nil
+	timeout := cfg.PhaseDuration(binary)
+
+	var lastErr error
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			backoff := time.Duration(30<<(attempt-1)) * time.Second // 30s, 60s, 120s
+			slog.Info("retrying phase", "phase", binary, "attempt", attempt+1, "backoff", backoff)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(backoff):
+			}
+		}
+
+		phaseCtx, cancel := context.WithTimeout(ctx, timeout)
+		cmd := exec.CommandContext(phaseCtx, binary)
+		cmd.Env = append(os.Environ(),
+			"PIPELINE_STATE_PATH="+statePath,
+			"CONFIG_PATH="+configPath,
+		)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err := cmd.Run()
+		cancel()
+
+		if err == nil {
+			return nil
+		}
+
+		lastErr = fmt.Errorf("%s (attempt %d/%d): %w", binary, attempt+1, maxRetries+1, err)
+		slog.Warn("phase failed", "phase", binary, "attempt", attempt+1, "error", err)
+
+		if !isRetryable(err) {
+			return lastErr
+		}
+	}
+	return lastErr
+}
+
+func isRetryable(err error) bool {
+	// Timeout (hung phase) — retryable
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	// Signal kill (OOM, etc.) — retryable
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		return exitErr.ExitCode() > 128 // killed by signal
+	}
+	// Normal exit code (1, 2, etc.) — permanent failure
+	return false
 }
 
 func loadHumanComments(ctx context.Context, gh *github.Client, issueNumber int) string {
