@@ -237,22 +237,38 @@ func processIssue(ctx context.Context, gh *github.Client, cfg config.Config, iss
 	return fmt.Errorf("unknown plan outcome: %s", state.PlanOutcome)
 }
 
+// noRetryPhases lists phases that must not be retried because they
+// have non-idempotent side effects (creating branches, PRs).
+var noRetryPhases = map[string]bool{
+	"committer": true,
+}
+
+const maxBackoff = 2 * time.Minute
+
 func runPhase(ctx context.Context, cfg *config.Config, binary, statePath string) error {
 	maxRetries := cfg.MaxPhaseRetries
-	if maxRetries <= 0 {
+	if maxRetries < 0 {
 		maxRetries = 2
+	}
+	if noRetryPhases[binary] {
+		maxRetries = 0
 	}
 	timeout := cfg.PhaseDuration(binary)
 
 	var lastErr error
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
-			backoff := time.Duration(30<<(attempt-1)) * time.Second // 30s, 60s, 120s
+			backoff := time.Duration(30<<(attempt-1)) * time.Second
+			if backoff > maxBackoff {
+				backoff = maxBackoff
+			}
 			slog.Info("retrying phase", "phase", binary, "attempt", attempt+1, "backoff", backoff)
+			timer := time.NewTimer(backoff)
 			select {
 			case <-ctx.Done():
+				timer.Stop()
 				return ctx.Err()
-			case <-time.After(backoff):
+			case <-timer.C:
 			}
 		}
 
@@ -265,6 +281,8 @@ func runPhase(ctx context.Context, cfg *config.Config, binary, statePath string)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		err := cmd.Run()
+		// Check phaseCtx before cancel — exec.CommandContext sends SIGKILL
+		// on deadline, but the resulting ExitError doesn't wrap DeadlineExceeded.
 		timedOut := phaseCtx.Err() == context.DeadlineExceeded
 		cancel()
 
