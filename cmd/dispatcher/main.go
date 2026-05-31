@@ -265,6 +265,7 @@ func runPhase(ctx context.Context, cfg *config.Config, binary, statePath string)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		err := cmd.Run()
+		timedOut := phaseCtx.Err() == context.DeadlineExceeded
 		cancel()
 
 		if err == nil {
@@ -272,9 +273,9 @@ func runPhase(ctx context.Context, cfg *config.Config, binary, statePath string)
 		}
 
 		lastErr = fmt.Errorf("%s (attempt %d/%d): %w", binary, attempt+1, maxRetries+1, err)
-		slog.Warn("phase failed", "phase", binary, "attempt", attempt+1, "error", err)
+		slog.Warn("phase failed", "phase", binary, "attempt", attempt+1, "error", err, "timed_out", timedOut)
 
-		if !isRetryable(err) {
+		if !timedOut && !isRetryable(err) {
 			return lastErr
 		}
 	}
