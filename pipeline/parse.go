@@ -1,9 +1,53 @@
 package pipeline
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 )
+
+// CoderOutputSchema is the JSON Schema for structured coder output.
+// When passed as the Format field in an Ollama ChatRequest, the model
+// is constrained to output valid JSON matching this schema.
+var CoderOutputSchema = map[string]any{
+	"type": "object",
+	"properties": map[string]any{
+		"files": map[string]any{
+			"type": "array",
+			"items": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"path":     map[string]any{"type": "string"},
+					"language": map[string]any{"type": "string"},
+					"content":  map[string]any{"type": "string"},
+				},
+				"required": []string{"path", "content"},
+			},
+		},
+	},
+	"required": []string{"files"},
+}
+
+type coderOutput struct {
+	Files []struct {
+		Path     string `json:"path"`
+		Language string `json:"language"`
+		Content  string `json:"content"`
+	} `json:"files"`
+}
+
+// ParseStructuredCodeOutput parses JSON structured coder output into a FileState slice.
+func ParseStructuredCodeOutput(jsonOutput string) ([]FileState, error) {
+	var out coderOutput
+	if err := json.Unmarshal([]byte(jsonOutput), &out); err != nil {
+		return nil, err
+	}
+	var files []FileState
+	for _, f := range out.Files {
+		files = append(files, FileState{Path: f.Path, Content: f.Content})
+	}
+	return files, nil
+}
 
 func ParseCodeOutput(output string) []FileState {
 	var files []FileState
